@@ -120,6 +120,7 @@ function MountainInfoBlock(props){
 
     const [trialDataLoading, setTrialDataLoading] = useState(false);
     const [trialData, setTrialData] = useState([]);
+    const [panelVisible, setPanelVisible] = useState(true);
 
     const getMainTrialData = (item, map) => {
         return new Promise(async (resolve, reject) => {
@@ -201,6 +202,10 @@ function MountainInfoBlock(props){
         props.setCurrentTrialDataHandler(newDataArr);
     };
 
+    const toggleShowPanel = () => {
+        panelVisible ? setPanelVisible(false) : setPanelVisible(true);
+    };
+
     useEffect(() => {
         setTrialData([]);
     }, [props.data.id]);
@@ -221,19 +226,26 @@ function MountainInfoBlock(props){
                     : null
                 }
             </div>
-            <div className="col-md-6 px-2 py-2">
-                <div className="px-2 py-2 rounded shadow bg-light">
-                    <div className="fw-bold text-start d-flex align-items-center" style={{ fontSize: '25px' }}>
-                        <span className="pe-2">{ props.data.title }</span>
-                    </div>
-                    <div className="text-start">高度: {props.data.height}</div>
-                    <div className="text-start">行政區: {props.data.county}</div>
-                    <div className="text-start">山系: {props.data.mountain_sys}</div>
-                    <div className="text-start">備註: {props.data.title_tag}</div>
-                    <div className="text-start">所屬國家公園: {props.data.park}</div>
-                    <div className="text-start">基點: {props.data.base_point}</div>
-                    {/* <div>簡介: {props.data.summary}</div> */}
-                </div>
+            <div className="col-md-6 px-2 py-2 d-flex flex-column justify-content-end">
+                <Button size="small" variant="contained" className="w-100" onClick={toggleShowPanel}>
+                    { panelVisible ? <Icon>keyboard_arrow_down</Icon> : <Icon>expand_less</Icon> }
+                </Button>
+                {
+                    panelVisible ? 
+                        <div className="px-2 py-2 rounded shadow bg-light w-100">
+                            <div className="fw-bold text-start d-flex align-items-center" style={{ fontSize: '25px' }}>
+                                <span className="pe-2">{ props.data.title }</span>
+                            </div>
+                            <div className="text-start">高度: {props.data.height}</div>
+                            <div className="text-start">行政區: {props.data.county}</div>
+                            <div className="text-start">山系: {props.data.mountain_sys}</div>
+                            <div className="text-start">備註: {props.data.title_tag}</div>
+                            <div className="text-start">所屬國家公園: {props.data.park}</div>
+                            <div className="text-start">基點: {props.data.base_point}</div>
+                            {/* <div>簡介: {props.data.summary}</div> */}
+                        </div>
+                    : null
+                }
             </div>
             <div className="col-md-3 h-100 px-2 py-2" style={{ maxHeight: '230px', overflow: 'auto' }}>
                 <div className="px-2 py-2 bg-light rounded shadow h-100">
