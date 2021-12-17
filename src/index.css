@@ -59,3 +59,7 @@ code {
   min-height: 230px;
   z-index: 1000;
 }
+
+.mountain-img{
+  object-fit: cover;
+}

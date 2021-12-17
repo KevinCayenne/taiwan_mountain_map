@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip, LayersControl, LayerGroup, useMap, useMapEvents } from 'react-leaflet';
 import axios from 'axios';
 import { Icon } from '@mui/material';
+import LoadingButton from '@mui/lab/LoadingButton';
+import Button from '@mui/material/Button';
 import markerMointainIcon from './MountainIcon.js';
 let gpxParser = require('gpxparser');
 
@@ -18,46 +20,22 @@ const otherPeaks = taiwanPeaks.filter(item => item.label_item.length === 0);
 
 function MountainLayerControlGroup(props){
 
-    const [currentTrialData, setCurrentTrialData] = useState(null);
+    const [markerImgLoading, setMarkerImgLoading] = useState(false);
 
-    const getMainTrialData = (item, map) => {
+    const getMountainMainPhoto = (item) => {
         return new Promise(async (resolve, reject) => {
-            let currentItem = item;
-            let trialData = {};
-            let mainTrial = null;
-
-            console.log(currentItem);
-
             try{
+                const mountainDataResp = await axios.get(corsUrl + mainRequestUrl + 'index.php?q=mountain&act=detail&id=' + item.id);
+                const mountainData = mountainDataResp.data;
 
-                if(currentItem && item.related_trials.length){
-                    const pst = [currentItem.lat, currentItem.lon];
-                    map.setView(pst, 14);
-            
-                    for(let i = 0; i < item.related_trials.length; i++){
-                         // get gpx data
-                        const trailResp = await axios.get(corsUrl + mainRequestUrl + item.related_trials[i].link);
-                        const trailData = trailResp.data;
-                        let htmlObject = document.createElement('div');
-                        htmlObject.innerHTML = trailData;
-                        const gpxDataDiv = htmlObject.querySelector("#interactive_map");
-                        let gpxData = gpxDataDiv.attributes['data-value'].value;
-
-                        // Parse gpx
-                        // console.log(gpxData);
-                        const trailGpxResp = await axios.get(corsUrl + gpxData);
-                        var gpx = new gpxParser(); //Create gpxParser Object
-                        gpx.parse(trailGpxResp.data); 
-                        let geoJSON = gpx.toGeoJSON(); //parse gpx file from string data
-                        trialData.trial = geoJSON.features;
-                        // let mainPhotoData = htmlObject.querySelector(".main-left");
-                    }  
-                }
-                resolve(trialData);
+                let htmlObject = document.createElement('div');
+                htmlObject.innerHTML = mountainData;
+                const imgData = htmlObject.querySelector(".img-cover > img");
+                // console.log(imgData['src']);
+                resolve(imgData['src']);
             }
             catch(err){
-                console.log(err);
-                reject(trialData);
+                reject(err);
             }
         });
     };
@@ -75,13 +53,15 @@ function MountainLayerControlGroup(props){
                                 eventHandlers={{ 
                                     click: async () => {
                                         try{
-                                            props.setCurrentItemHandler(item);
+                                            setMarkerImgLoading(true);
                                             props.map.setView([item.lat, item.lon], 14);
-                                            const trialData = await getMainTrialData(item, props.map);
-                                            console.log(trialData);
-                                            setCurrentTrialData(trialData);
+                                            const photo = await getMountainMainPhoto(item);
+                                            item.mainPhoto = photo;
+                                            props.setCurrentItemHandler(item);
+                                            setMarkerImgLoading(false);
                                         }
                                         catch(err){
+                                            setMarkerImgLoading(false);
                                             console.log(err);
                                         }
                                     },
@@ -95,18 +75,15 @@ function MountainLayerControlGroup(props){
                                             { item.label_item.length ? item.label_item[0].name : null }
                                         </span>
                                     </div>
+                                    { markerImgLoading ? <div className="alert alert-warning px-1 py-1 mt-2">資料擷取中，請稍候</div> : null }
                                 </Popup>
-                                <Tooltip direction="top" offset={[0, 0]} opacity={1} permanent>{ item.title }</Tooltip>
+                                <Tooltip direction="top" offset={[0, 0]} opacity={1} permanent>
+                                    { item.title }
+                                </Tooltip>
                             </Marker>
                         )
                     : ""
                 }
-                {/* <Polyline
-                    pathOptions={{ fillColor: 'red', color: 'blue' }}
-                    positions={[
-                        [40.689818841705, -74.04511194542516],
-                    ]}
-                /> */}
             </LayerGroup>
         </LayersControl.Overlay>
     )
@@ -140,12 +117,93 @@ function ResetPositionBtn(props){
 }
 
 function MountainInfoBlock(props){
+
+    const [trialDataLoading, setTrialDataLoading] = useState(false);
+    const [trialData, setTrialData] = useState([]);
+
+    const getMainTrialData = (item, map) => {
+        return new Promise(async (resolve, reject) => {
+            let currentItem = item;
+            let trialData = [];
+            console.log(currentItem);
+            try{
+                if(currentItem && item.related_trials.length){
+                    const pst = [currentItem.lat, currentItem.lon];
+                    map.setView(pst, 14);
+            
+                    for(let i = 0; i < item.related_trials.length; i++){
+                        // get gpx data
+                        let tempTrial = {}; 
+                        const trailResp = await axios.get(corsUrl + mainRequestUrl + item.related_trials[i].link);
+                        const trailData = trailResp.data;
+                        let htmlObject = document.createElement('div');
+                        htmlObject.innerHTML = trailData;
+                        const gpxDataDiv = htmlObject.querySelector("#interactive_map");
+                        let gpxData = gpxDataDiv.attributes['data-value'].value;
+
+                        // Parse gpx
+                        // console.log(gpxData);
+                        const trailGpxResp = await axios.get(corsUrl + gpxData);
+                        var gpx = new gpxParser(); //Create gpxParser Object
+                        gpx.parse(trailGpxResp.data); 
+                        let geoJSON = gpx.toGeoJSON(); //parse gpx file from string data
+                        tempTrial.trial = geoJSON.features;
+                        tempTrial.visible = true;
+                        trialData.push(tempTrial);
+                    }  
+                }
+                resolve(trialData);
+            }
+            catch(err){
+                console.log(err);
+                reject(trialData);
+                setTrialDataLoading(false);
+            }
+        });
+    };
+
+    const loadTrial = async () => {
+        setTrialDataLoading(true);
+        const trialDataResp = await getMainTrialData(props.data, props.map);
+        // console.log(trialDataResp);
+        setTrialData(trialDataResp);
+        props.setCurrentTrialDataHandler(trialDataResp);
+        setTrialDataLoading(false);
+    }
+
+    const togglePathVisible = (item, index) => {
+        let newDataArr = [...trialData]; // copying the old datas array
+        newDataArr[index].visible = item.visible ? false : true; 
+        setTrialData(newDataArr);
+        props.setCurrentTrialDataHandler(newDataArr);
+    };
+
+    useEffect(() => {
+        setTrialData([]);
+    }, [props.data.id]);
+
+    useEffect(() => {
+        return () => {
+            setTrialDataLoading(false);
+            setTrialData(null);
+        }
+    }, []);
+
     return(
         <div id="mountain-info-block" className='row mx-0'>
-            <div className="col-md-3"></div>
+            <div className="col-md-3 py-2">
+                {
+                    props.data.mainPhoto ?
+                        <img className="mountain-img w-100 h-100 rounded shodow" src={ props.data.mainPhoto } alt="" />
+                    : null
+                }
+                { props.data.mainPhoto }
+            </div>
             <div className="col-md-6 px-2 py-2">
                 <div className="px-2 py-2 rounded shadow bg-light">
-                    <div className="fw-bold text-start" style={{ fontSize: '25px' }}>{props.data.title}</div>
+                    <div className="fw-bold text-start d-flex align-items-center" style={{ fontSize: '25px' }}>
+                        <span className="pe-2">{ props.data.title }</span>
+                    </div>
                     <div className="text-start">高度: {props.data.height}</div>
                     <div className="text-start">行政區: {props.data.county}</div>
                     <div className="text-start">山系: {props.data.mountain_sys}</div>
@@ -155,7 +213,41 @@ function MountainInfoBlock(props){
                     {/* <div>簡介: {props.data.summary}</div> */}
                 </div>
             </div>
-            <div className="col-md-3"></div>
+            <div className="col-md-3 h-100 px-2 py-2" style={{ maxHeight: '230px', overflow: 'auto' }}>
+                <div className="px-2 py-2 bg-light rounded shadow h-100">
+                    <div className="border-bottom">
+                        <span className="pe-2">路線資料</span>
+                        { trialData.length ?  '(' + trialData.length + ')' : null }
+                    </div>
+                    <div>
+                        {
+                            trialData.length === 0 ?
+                                <LoadingButton
+                                    className="my-1"
+                                    onClick={loadTrial}
+                                    loading={trialDataLoading}
+                                    loadingPosition="end"
+                                    endIcon={<Icon>directions_walk</Icon>}
+                                    variant="contained"
+                                >
+                                    <span className="align-middle">載入路線</span>
+                                </LoadingButton>
+                            : null
+                        }
+                        {
+                            trialData.map((item, index) => 
+                                <div key={index} className="py-1">
+                                    <Button size="small" variant="outlined" className="w-100" onClick={e => togglePathVisible(item, index)}>
+                                        { index + 1 + '. ' }
+                                        { item.trial[0].properties.name ? item.trial[0].properties.name : '路線' }
+                                        { item.visible ? <Icon>visibility</Icon> : <Icon>visibility_off</Icon> }
+                                    </Button>
+                                </div>
+                            )
+                        }
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }
@@ -164,6 +256,7 @@ function MapContainerDiv(porps){
 
     const [map, setMap] = useState(null);
     const [currentItem, setCurrentItem] = useState(null);
+    const [currentTrialData, setCurrentTrialData] = useState(null);
     const centerLatLng = [23.97565, 120.9738819];
     const zoom = 8;
 
@@ -177,6 +270,7 @@ function MapContainerDiv(porps){
 
             },
             click(e) {
+                setCurrentTrialData(null);
                 if(e){
                     setCurrentItem(null);
                 }
@@ -186,15 +280,19 @@ function MapContainerDiv(porps){
     }
 
     useEffect(() => {
-        
+        setCurrentTrialData(null);
+    }, [currentItem]);
+
+    useEffect(() => {
         return () => {
+            setCurrentTrialData(null);
             setCurrentItem(null);
         }
     }, []);
 
     return (
-        <div style={{ height: '100%', width: '100%' }}>
-            { currentItem ? <MountainInfoBlock data={ currentItem } /> : null }
+        <div id="map-div" style={{ height: '100%', width: '100%' }}>
+            { currentItem ? <MountainInfoBlock data={ currentItem } map={map} setCurrentTrialDataHandler={setCurrentTrialData} /> : null }
             { map ? <ResetPositionBtn map={map} center={centerLatLng} zoom={zoom} /> : null }
             <MapContainer center={centerLatLng} whenCreated={setMap} zoom={zoom} scrollWheelZoom={true} zoomControl={false} style={{ height: '100%', width: '100%' }}>
                 <MapComponent />
@@ -211,6 +309,19 @@ function MapContainerDiv(porps){
                     <MountainLayerControlGroup name="太魯閣七雄" icon={markerMointainIcon} checked={false} data={tairokoSevenPeaks} map={map} setCurrentItemHandler={setCurrentItem} />
                     <MountainLayerControlGroup name="其他山岳" icon={markerMointainIcon} checked={false} data={otherPeaks} map={map} setCurrentItemHandler={setCurrentItem} />
                 </LayersControl>
+                {
+                    currentTrialData ? 
+                        currentTrialData.map((trial, index) => 
+                            trial.visible ? 
+                                <Polyline 
+                                    key={index}
+                                    pathOptions={{ fillColor: 'red', color: 'blue' }}
+                                    positions={trial.trial[0].geometry.coordinates.map(point => [point[1], point[0]])}
+                                />
+                            : null
+                        )
+                    : null
+                }
             </MapContainer>
         </div>
     );
