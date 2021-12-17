@@ -247,41 +247,45 @@ function MountainInfoBlock(props){
                     : null
                 }
             </div>
-            <div className="col-md-3 h-100 px-2 py-2" style={{ maxHeight: '230px', overflow: 'auto' }}>
-                <div className="px-2 py-2 bg-light rounded shadow h-100">
-                    <div className="border-bottom">
-                        <span className="pe-2">路線資料</span>
-                        { trialData.length ?  '(' + trialData.length + ')' : null }
+            {
+                panelVisible ? 
+                    <div className="col-md-3 h-100 px-2 py-2" style={{ maxHeight: '230px', overflow: 'auto' }}>
+                        <div className="px-2 py-2 bg-light rounded shadow h-100">
+                            <div className="border-bottom">
+                                <span className="pe-2">路線資料</span>
+                                { trialData.length ?  '(' + trialData.length + ')' : null }
+                            </div>
+                            <div>
+                                {
+                                    trialData.length === 0 ?
+                                        <LoadingButton
+                                            className="my-1"
+                                            onClick={loadTrial}
+                                            loading={trialDataLoading}
+                                            loadingPosition="end"
+                                            endIcon={<Icon>directions_walk</Icon>}
+                                            variant="contained"
+                                        >
+                                            <span className="align-middle">載入路線</span>
+                                        </LoadingButton>
+                                    : null
+                                }
+                                {
+                                    trialData.map((item, index) => 
+                                        <div key={index} className="py-1">
+                                            <Button size="small" variant="outlined" className="w-100" onClick={e => togglePathVisible(item, index)}>
+                                                { index + 1 + '. ' }
+                                                { item.trial[0].properties.name ? item.trial[0].properties.name : '路線' }
+                                                { item.visible ? <Icon>visibility</Icon> : <Icon>visibility_off</Icon> }
+                                            </Button>
+                                        </div>
+                                    )
+                                }
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        {
-                            trialData.length === 0 ?
-                                <LoadingButton
-                                    className="my-1"
-                                    onClick={loadTrial}
-                                    loading={trialDataLoading}
-                                    loadingPosition="end"
-                                    endIcon={<Icon>directions_walk</Icon>}
-                                    variant="contained"
-                                >
-                                    <span className="align-middle">載入路線</span>
-                                </LoadingButton>
-                            : null
-                        }
-                        {
-                            trialData.map((item, index) => 
-                                <div key={index} className="py-1">
-                                    <Button size="small" variant="outlined" className="w-100" onClick={e => togglePathVisible(item, index)}>
-                                        { index + 1 + '. ' }
-                                        { item.trial[0].properties.name ? item.trial[0].properties.name : '路線' }
-                                        { item.visible ? <Icon>visibility</Icon> : <Icon>visibility_off</Icon> }
-                                    </Button>
-                                </div>
-                            )
-                        }
-                    </div>
-                </div>
-            </div>
+                : null
+            }
         </div>
     );
 }
@@ -304,7 +308,6 @@ function MapContainerDiv(porps){
 
             },
             click(e) {
-                setCurrentTrialData(null);
                 if(e){
                     setCurrentItem(null);
                 }
@@ -333,7 +336,7 @@ function MapContainerDiv(porps){
                 <LayersControl position="topright">
                     <LayersControl.BaseLayer checked name="OpenStreetMap.Mapnik">
                         <TileLayer
-                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors 資料來源:健行筆記'
                             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                         />
                     </LayersControl.BaseLayer>
