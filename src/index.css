@@ -63,3 +63,9 @@ code {
 .mountain-img{
   object-fit: cover;
 }
+
+@media screen and (max-width: 768px) {
+  .rwd-hide{
+      display: none;
+  }
+}

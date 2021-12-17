@@ -30,9 +30,9 @@ function MountainLayerControlGroup(props){
 
                 let htmlObject = document.createElement('div');
                 htmlObject.innerHTML = mountainData;
-                const imgData = htmlObject.querySelector(".img-cover > img");
-                // console.log(imgData['src']);
-                resolve(imgData['src']);
+                const imgData = htmlObject.querySelector("meta[itemprop='image']");
+                // console.log(imgData['content']);
+                resolve(imgData['content']);
             }
             catch(err){
                 reject(err);
@@ -125,7 +125,7 @@ function MountainInfoBlock(props){
         return new Promise(async (resolve, reject) => {
             let currentItem = item;
             let trialData = [];
-            console.log(currentItem);
+            // console.log(currentItem);
             try{
                 if(currentItem && item.related_trials.length){
                     const pst = [currentItem.lat, currentItem.lon];
@@ -134,22 +134,45 @@ function MountainInfoBlock(props){
                     for(let i = 0; i < item.related_trials.length; i++){
                         // get gpx data
                         let tempTrial = {}; 
-                        const trailResp = await axios.get(corsUrl + mainRequestUrl + item.related_trials[i].link);
+                        // console.log(item.related_trials[i].link);
+                        const trailResp = await axios.get(corsUrl + mainRequestUrl + item.related_trials[i].link + '&type=route');
                         const trailData = trailResp.data;
                         let htmlObject = document.createElement('div');
                         htmlObject.innerHTML = trailData;
-                        const gpxDataDiv = htmlObject.querySelector("#interactive_map");
-                        let gpxData = gpxDataDiv.attributes['data-value'].value;
+                        let gpxDataDiv = htmlObject.querySelector("#interactive_map");
+                        let gpxDataMobileDiv = htmlObject.querySelector(".flex.col-gap-20 > a");
 
-                        // Parse gpx
-                        // console.log(gpxData);
-                        const trailGpxResp = await axios.get(corsUrl + gpxData);
-                        var gpx = new gpxParser(); //Create gpxParser Object
-                        gpx.parse(trailGpxResp.data); 
-                        let geoJSON = gpx.toGeoJSON(); //parse gpx file from string data
-                        tempTrial.trial = geoJSON.features;
-                        tempTrial.visible = true;
-                        trialData.push(tempTrial);
+                        if(gpxDataDiv){
+                            let gpxData = gpxDataDiv.attributes['data-value'].value;
+                            // console.log(gpxData);
+
+                            // Parse gpx
+                            const trailGpxResp = await axios.get(corsUrl + gpxData);
+                            var gpx = new gpxParser(); //Create gpxParser Object
+                            gpx.parse(trailGpxResp.data); 
+                            let geoJSON = gpx.toGeoJSON(); //parse gpx file from string data
+                            tempTrial.trial = geoJSON.features;
+                            tempTrial.visible = true;
+                            trialData.push(tempTrial);
+                        }else{
+                            const gpxId = gpxDataMobileDiv['href'].split('id=')[1];
+                            const trailGpxResp = await axios.get(corsUrl + mainRequestUrl + '/index.php?q=trail&act=gpx_detail&id=' + gpxId);
+
+                            const trailGpxData = trailGpxResp.data;
+                            let htmlObject = document.createElement('div');
+                            htmlObject.innerHTML = trailGpxData;
+                            gpxDataDiv = htmlObject.querySelector("#interactive_map");
+                            let gpxData = gpxDataDiv.attributes['data-value'].value;
+
+                            // Parse gpx
+                            const trailGpxMobileResp = await axios.get(corsUrl + gpxData);
+                            gpx = new gpxParser(); //Create gpxParser Object
+                            gpx.parse(trailGpxMobileResp.data); 
+                            let geoJSON = gpx.toGeoJSON(); //parse gpx file from string data
+                            tempTrial.trial = geoJSON.features;
+                            tempTrial.visible = true;
+                            trialData.push(tempTrial);
+                        }
                     }  
                 }
                 resolve(trialData);
@@ -191,13 +214,12 @@ function MountainInfoBlock(props){
 
     return(
         <div id="mountain-info-block" className='row mx-0'>
-            <div className="col-md-3 py-2">
+            <div className="col-md-3 py-2 rwd-hide">
                 {
                     props.data.mainPhoto ?
                         <img className="mountain-img w-100 h-100 rounded shodow" src={ props.data.mainPhoto } alt="" />
                     : null
                 }
-                { props.data.mainPhoto }
             </div>
             <div className="col-md-6 px-2 py-2">
                 <div className="px-2 py-2 rounded shadow bg-light">
