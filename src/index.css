@@ -64,6 +64,31 @@ code {
   object-fit: cover;
 }
 
+#github-link{
+  position: absolute;
+  top: 20px;
+  right: 160px;
+  width: 20px;
+  height: 20px;
+  z-index: 1000;
+}
+
+#github-link > img {
+  width: 30px;
+  height: 30px;
+}
+
+#here-btn{
+  position: absolute;
+  top: 17px;
+  right: 105px;
+  width: auto !important;
+  min-width: 20px;
+  z-index: 1000;
+  padding: 6px;
+  border-radius: 50%;
+}
+
 @media screen and (max-width: 768px) {
   .rwd-hide{
       display: none;

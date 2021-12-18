@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip, LayersControl, LayerGroup, useMap, useMapEvents } from 'react-leaflet';
 import axios from 'axios';
-import { Icon } from '@mui/material';
+import { Icon, Link } from '@mui/material';
 import LoadingButton from '@mui/lab/LoadingButton';
 import Button from '@mui/material/Button';
 import markerMointainIcon from './MountainIcon.js';
+import GitHubIcon from '../../assets/png/GitHub-Mark/PNG/GitHub-Mark-64px.png';
+
 let gpxParser = require('gpxparser');
 
 const corsUrl = 'https://cors-proxy-kevincay.herokuapp.com/';
@@ -54,10 +56,10 @@ function MountainLayerControlGroup(props){
                                     click: async () => {
                                         try{
                                             setMarkerImgLoading(true);
+                                            props.setCurrentItemHandler(item);
                                             props.map.setView([item.lat, item.lon], 14);
                                             const photo = await getMountainMainPhoto(item);
-                                            item.mainPhoto = photo;
-                                            props.setCurrentItemHandler(item);
+                                            props.setCurrentItemHandler({...item, mainPhoto: photo});
                                             setMarkerImgLoading(false);
                                         }
                                         catch(err){
@@ -294,9 +296,28 @@ function MapContainerDiv(porps){
 
     const [map, setMap] = useState(null);
     const [currentItem, setCurrentItem] = useState(null);
+    const [selfPosition, setSelfPosition] = useState(null);
     const [currentTrialData, setCurrentTrialData] = useState(null);
     const centerLatLng = [23.97565, 120.9738819];
     const zoom = 8;
+
+    const getUserPosition = () => {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(getPosition);
+        } else { 
+            console.log('Not support navigation.');
+        }
+    };
+
+    const getPosition = (position) => {
+        // console.log(position);
+        if(position.coords)
+        setSelfPosition([position.coords.latitude, position.coords.longitude]);
+    };
+
+    const moveToHere = () => {
+        map.setView(selfPosition, 14);
+    };
 
     function MapComponent() {
         const map = useMap();
@@ -321,17 +342,26 @@ function MapContainerDiv(porps){
     }, [currentItem]);
 
     useEffect(() => {
+        getUserPosition();
+
         return () => {
             setCurrentTrialData(null);
             setCurrentItem(null);
+            setSelfPosition(null);
         }
     }, []);
 
     return (
         <div id="map-div" style={{ height: '100%', width: '100%' }}>
             { currentItem ? <MountainInfoBlock data={ currentItem } map={map} setCurrentTrialDataHandler={setCurrentTrialData} /> : null }
+            <Link id="github-link" href="https://github.com/KevinCayenne/taiwan_mountain_map" underline="none">
+                <img src={GitHubIcon} alt="" />
+            </Link>
+            <Button id="here-btn" size="small" color="info" className="w-100" onClick={moveToHere}>
+                <Icon>gps_fixed</Icon>
+            </Button>
             { map ? <ResetPositionBtn map={map} center={centerLatLng} zoom={zoom} /> : null }
-            <MapContainer center={centerLatLng} whenCreated={setMap} zoom={zoom} scrollWheelZoom={true} zoomControl={false} style={{ height: '100%', width: '100%' }}>
+            <MapContainer center={centerLatLng} whenCreated={setMap} zoom={zoom} scrollWheelZoom={true} zoomControl={true} style={{ height: '100%', width: '100%' }}>
                 <MapComponent />
                 <LayersControl position="topright">
                     <LayersControl.BaseLayer checked name="OpenStreetMap.Mapnik">
@@ -358,6 +388,9 @@ function MapContainerDiv(porps){
                             : null
                         )
                     : null
+                }
+                {
+                    selfPosition ? <Marker position={selfPosition}></Marker> : null
                 }
             </MapContainer>
         </div>
