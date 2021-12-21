@@ -2,12 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip, LayersControl, LayerGroup, useMap, useMapEvents } from 'react-leaflet';
 import axios from 'axios';
 import { Icon, Link } from '@mui/material';
-import LoadingButton from '@mui/lab/LoadingButton';
 import Button from '@mui/material/Button';
 import markerMointainIcon from './MountainIcon.js';
 import GitHubIcon from '../../assets/png/GitHub-Mark/PNG/GitHub-Mark-64px.png';
 
-let gpxParser = require('gpxparser');
+import MountainInfoBlock from './MountainInfoBlock';
 
 const corsUrl = 'https://cors-proxy-kevincay.herokuapp.com/';
 const mainRequestUrl = 'https://hiking.biji.co/';
@@ -21,8 +20,6 @@ const tairokoSevenPeaks = taiwanPeaks.filter(item => item.label_item.length ? it
 const otherPeaks = taiwanPeaks.filter(item => item.label_item.length === 0);
 
 function MountainLayerControlGroup(props){
-
-    const [markerImgLoading, setMarkerImgLoading] = useState(false);
 
     const getMountainMainPhoto = (item) => {
         return new Promise(async (resolve, reject) => {
@@ -55,33 +52,36 @@ function MountainLayerControlGroup(props){
                                 eventHandlers={{ 
                                     click: async () => {
                                         try{
-                                            setMarkerImgLoading(true);
+                                            props.setMarkerImgLoadingHandler(true);
                                             props.setCurrentItemHandler(item);
                                             props.map.setView([item.lat, item.lon], 14);
                                             const photo = await getMountainMainPhoto(item);
                                             props.setCurrentItemHandler({...item, mainPhoto: photo});
-                                            setMarkerImgLoading(false);
+                                            props.setMarkerImgLoadingHandler(false);
                                         }
                                         catch(err){
-                                            setMarkerImgLoading(false);
+                                            props.setMarkerImgLoadingHandler(false);
                                             console.log(err);
                                         }
                                     },
                                 }}
                             >
                                 <Popup style={{ width: '70px' }}>
-                                    <div className="fw-bold text-center" style={{ fontSize: '20px' }}>{item.title}</div>
-                                    <div style={{ fontSize: '20px' }}>{ item.height }</div>
+                                    <div className="fw-bold text-center text-light" style={{ fontSize: '25px', textShadow: 'black 0.05em 0.05em 0.1em' }}>{item.title}</div>
+                                    <div className="fw-bold text-light text-center" style={{ fontSize: '20px', textShadow: 'black 0.05em 0.05em 0.1em' }}>{ item.height }</div>
                                     <div className="text-center" style={{ fontSize: '20px' }}>
                                         <span className="badge bg-success">
                                             { item.label_item.length ? item.label_item[0].name : null }
                                         </span>
                                     </div>
-                                    { markerImgLoading ? <div className="alert alert-warning px-1 py-1 mt-2">資料擷取中，請稍候</div> : null }
                                 </Popup>
-                                <Tooltip direction="top" offset={[0, 0]} opacity={1} permanent>
-                                    { item.title }
-                                </Tooltip>
+                                {
+                                    props.currentItem && item.id === props.currentItem.id ? null
+                                    : <Tooltip direction="top" offset={[0, 0]} opacity={1} permanent>
+                                        { item.title }
+                                    </Tooltip>
+                                }
+                                
                             </Marker>
                         )
                     : ""
@@ -118,187 +118,15 @@ function ResetPositionBtn(props){
     )
 }
 
-function MountainInfoBlock(props){
-
-    const [trialDataLoading, setTrialDataLoading] = useState(false);
-    const [trialData, setTrialData] = useState([]);
-    const [panelVisible, setPanelVisible] = useState(true);
-
-    const getMainTrialData = (item, map) => {
-        return new Promise(async (resolve, reject) => {
-            let currentItem = item;
-            let trialData = [];
-            // console.log(currentItem);
-            try{
-                if(currentItem && item.related_trials.length){
-                    const pst = [currentItem.lat, currentItem.lon];
-                    map.setView(pst, 14);
-            
-                    for(let i = 0; i < item.related_trials.length; i++){
-                        // get gpx data
-                        let tempTrial = {}; 
-                        // console.log(item.related_trials[i].link);
-                        const trailResp = await axios.get(corsUrl + mainRequestUrl + item.related_trials[i].link + '&type=route');
-                        const trailData = trailResp.data;
-                        let htmlObject = document.createElement('div');
-                        htmlObject.innerHTML = trailData;
-                        let gpxDataDiv = htmlObject.querySelector("#interactive_map");
-                        let gpxDataMobileDiv = htmlObject.querySelector(".flex.col-gap-20 > a");
-
-                        if(gpxDataDiv){
-                            let gpxData = gpxDataDiv.attributes['data-value'].value;
-                            // console.log(gpxData);
-
-                            // Parse gpx
-                            const trailGpxResp = await axios.get(corsUrl + gpxData);
-                            var gpx = new gpxParser(); //Create gpxParser Object
-                            gpx.parse(trailGpxResp.data); 
-                            let geoJSON = gpx.toGeoJSON(); //parse gpx file from string data
-                            tempTrial.trial = geoJSON.features;
-                            tempTrial.visible = true;
-                            trialData.push(tempTrial);
-                        }else{
-                            const gpxId = gpxDataMobileDiv['href'].split('id=')[1];
-                            const trailGpxResp = await axios.get(corsUrl + mainRequestUrl + '/index.php?q=trail&act=gpx_detail&id=' + gpxId);
-
-                            const trailGpxData = trailGpxResp.data;
-                            let htmlObject = document.createElement('div');
-                            htmlObject.innerHTML = trailGpxData;
-                            gpxDataDiv = htmlObject.querySelector("#interactive_map");
-                            let gpxData = gpxDataDiv.attributes['data-value'].value;
-
-                            // Parse gpx
-                            const trailGpxMobileResp = await axios.get(corsUrl + gpxData);
-                            gpx = new gpxParser(); //Create gpxParser Object
-                            gpx.parse(trailGpxMobileResp.data); 
-                            let geoJSON = gpx.toGeoJSON(); //parse gpx file from string data
-                            tempTrial.trial = geoJSON.features;
-                            tempTrial.visible = true;
-                            trialData.push(tempTrial);
-                        }
-                    }  
-                }
-                resolve(trialData);
-            }
-            catch(err){
-                console.log(err);
-                reject(trialData);
-                setTrialDataLoading(false);
-            }
-        });
-    };
-
-    const loadTrial = async () => {
-        setTrialDataLoading(true);
-        const trialDataResp = await getMainTrialData(props.data, props.map);
-        // console.log(trialDataResp);
-        setTrialData(trialDataResp);
-        props.setCurrentTrialDataHandler(trialDataResp);
-        setTrialDataLoading(false);
-    }
-
-    const togglePathVisible = (item, index) => {
-        let newDataArr = [...trialData]; // copying the old datas array
-        newDataArr[index].visible = item.visible ? false : true; 
-        setTrialData(newDataArr);
-        props.setCurrentTrialDataHandler(newDataArr);
-    };
-
-    const toggleShowPanel = () => {
-        panelVisible ? setPanelVisible(false) : setPanelVisible(true);
-    };
-
-    useEffect(() => {
-        setTrialData([]);
-    }, [props.data.id]);
-
-    useEffect(() => {
-        return () => {
-            setTrialDataLoading(false);
-            setTrialData(null);
-        }
-    }, []);
-
-    return(
-        <div id="mountain-info-block" className='row mx-0'>
-            <div className="col-md-3 py-2 rwd-hide">
-                {
-                    props.data.mainPhoto ?
-                        <img className="mountain-img w-100 h-100 rounded shodow" src={ props.data.mainPhoto } alt="" />
-                    : null
-                }
-            </div>
-            <div className="col-md-6 px-2 py-2 d-flex flex-column justify-content-end">
-                <Button size="small" variant="contained" className="w-100" onClick={toggleShowPanel}>
-                    { panelVisible ? <Icon>keyboard_arrow_down</Icon> : <Icon>expand_less</Icon> }
-                </Button>
-                {
-                    panelVisible ? 
-                        <div className="px-2 py-2 rounded shadow bg-light w-100">
-                            <div className="fw-bold text-start d-flex align-items-center" style={{ fontSize: '25px' }}>
-                                <span className="pe-2">{ props.data.title }</span>
-                            </div>
-                            <div className="text-start">高度: {props.data.height}</div>
-                            <div className="text-start">行政區: {props.data.county}</div>
-                            <div className="text-start">山系: {props.data.mountain_sys}</div>
-                            <div className="text-start">備註: {props.data.title_tag}</div>
-                            <div className="text-start">所屬國家公園: {props.data.park}</div>
-                            <div className="text-start">基點: {props.data.base_point}</div>
-                            {/* <div>簡介: {props.data.summary}</div> */}
-                        </div>
-                    : null
-                }
-            </div>
-            {
-                panelVisible ? 
-                    <div className="col-md-3 h-100 px-2 py-2" style={{ maxHeight: '230px', overflow: 'auto' }}>
-                        <div className="px-2 py-2 bg-light rounded shadow h-100">
-                            <div className="border-bottom">
-                                <span className="pe-2">路線資料</span>
-                                { trialData.length ?  '(' + trialData.length + ')' : null }
-                            </div>
-                            <div>
-                                {
-                                    trialData.length === 0 ?
-                                        <LoadingButton
-                                            className="my-1"
-                                            onClick={loadTrial}
-                                            loading={trialDataLoading}
-                                            loadingPosition="end"
-                                            endIcon={<Icon>directions_walk</Icon>}
-                                            variant="contained"
-                                        >
-                                            <span className="align-middle">載入路線</span>
-                                        </LoadingButton>
-                                    : null
-                                }
-                                {
-                                    trialData.map((item, index) => 
-                                        <div key={index} className="py-1">
-                                            <Button size="small" variant="outlined" className="w-100" onClick={e => togglePathVisible(item, index)}>
-                                                { index + 1 + '. ' }
-                                                { item.trial[0].properties.name ? item.trial[0].properties.name : '路線' }
-                                                { item.visible ? <Icon>visibility</Icon> : <Icon>visibility_off</Icon> }
-                                            </Button>
-                                        </div>
-                                    )
-                                }
-                            </div>
-                        </div>
-                    </div>
-                : null
-            }
-        </div>
-    );
-}
-
 function MapContainerDiv(porps){
 
     const [map, setMap] = useState(null);
     const [currentItem, setCurrentItem] = useState(null);
     const [selfPosition, setSelfPosition] = useState(null);
     const [currentTrialData, setCurrentTrialData] = useState(null);
-    const centerLatLng = [23.97565, 120.9738819];
+    const [markerImgLoading, setMarkerImgLoading] = useState(false);
+
+    const centerLatLng = [23.65, 120.9738819];
     const zoom = 8;
 
     const getUserPosition = () => {
@@ -348,12 +176,13 @@ function MapContainerDiv(porps){
             setCurrentTrialData(null);
             setCurrentItem(null);
             setSelfPosition(null);
+            setMarkerImgLoading(null);
         }
     }, []);
 
     return (
         <div id="map-div" style={{ height: '100%', width: '100%' }}>
-            { currentItem ? <MountainInfoBlock data={ currentItem } map={map} setCurrentTrialDataHandler={setCurrentTrialData} /> : null }
+            { currentItem ? <MountainInfoBlock data={ currentItem } map={map} markerImgLoading={markerImgLoading} setCurrentTrialDataHandler={setCurrentTrialData} /> : null }
             <Link id="github-link" href="https://github.com/KevinCayenne/taiwan_mountain_map" underline="none">
                 <img src={GitHubIcon} alt="" />
             </Link>
@@ -370,21 +199,25 @@ function MapContainerDiv(porps){
                             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                         />
                     </LayersControl.BaseLayer>
-                    <MountainLayerControlGroup name="台灣百岳" icon={markerMointainIcon} checked={true} data={hondredPeaks} map={map} setCurrentItemHandler={setCurrentItem} />
-                    <MountainLayerControlGroup name="台灣小百岳" icon={markerMointainIcon} checked={false} data={littleHondredPeaks} map={map} setCurrentItemHandler={setCurrentItem} />
-                    <MountainLayerControlGroup name="谷關七雄" icon={markerMointainIcon} checked={false} data={guGuanSevenPeaks} map={map} setCurrentItemHandler={setCurrentItem} />
-                    <MountainLayerControlGroup name="太魯閣七雄" icon={markerMointainIcon} checked={false} data={tairokoSevenPeaks} map={map} setCurrentItemHandler={setCurrentItem} />
-                    <MountainLayerControlGroup name="其他山岳" icon={markerMointainIcon} checked={false} data={otherPeaks} map={map} setCurrentItemHandler={setCurrentItem} />
+                    <MountainLayerControlGroup name="台灣百岳" icon={markerMointainIcon} checked={true} data={hondredPeaks} map={map} setMarkerImgLoadingHandler={setMarkerImgLoading} setCurrentItemHandler={setCurrentItem} currentItem={currentItem} />
+                    <MountainLayerControlGroup name="台灣小百岳" icon={markerMointainIcon} checked={false} data={littleHondredPeaks} map={map} setMarkerImgLoadingHandler={setMarkerImgLoading} setCurrentItemHandler={setCurrentItem} currentItem={currentItem} />
+                    <MountainLayerControlGroup name="谷關七雄" icon={markerMointainIcon} checked={false} data={guGuanSevenPeaks} map={map} setMarkerImgLoadingHandler={setMarkerImgLoading} setCurrentItemHandler={setCurrentItem} currentItem={currentItem} />
+                    <MountainLayerControlGroup name="太魯閣七雄" icon={markerMointainIcon} checked={false} data={tairokoSevenPeaks} map={map} setMarkerImgLoadingHandler={setMarkerImgLoading} setCurrentItemHandler={setCurrentItem} currentItem={currentItem} />
+                    <MountainLayerControlGroup name="其他山岳" icon={markerMointainIcon} checked={false} data={otherPeaks} map={map} setMarkerImgLoadingHandler={setMarkerImgLoading} setCurrentItemHandler={setCurrentItem} currentItem={currentItem} />
                 </LayersControl>
                 {
                     currentTrialData ? 
-                        currentTrialData.map((trial, index) => 
-                            trial.visible ? 
-                                <Polyline 
-                                    key={index}
-                                    pathOptions={{ fillColor: 'red', color: 'blue' }}
-                                    positions={trial.trial[0].geometry.coordinates.map(point => [point[1], point[0]])}
-                                />
+                        currentTrialData.map((featrue, index) => 
+                            featrue.visible && featrue.trial.length ? 
+                                featrue.trial.map((trial, trialIndex) => 
+                                    trial.geometry.type === "LineString" ? 
+                                        <Polyline 
+                                            key={index + '_' + trialIndex}
+                                            pathOptions={{ fillColor: 'red', color: 'blue' }}
+                                            positions={trial.geometry.coordinates.map(point => [point[1], point[0]])}
+                                        />
+                                    : null
+                                )
                             : null
                         )
                     : null

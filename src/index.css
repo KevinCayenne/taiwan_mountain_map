@@ -89,8 +89,25 @@ code {
   border-radius: 50%;
 }
 
+.leaflet-popup-content-wrapper{
+  background-color: transparent;
+  box-shadow: none;
+}
+
+.leaflet-popup-tip-container{
+  display: none;
+}
+
+.mountain-img-div{
+  display: flex;
+}
+
 @media screen and (max-width: 768px) {
   .rwd-hide{
-      display: none;
+      display: none !important;
+  }
+  
+  .mountain-img-div{
+    display: none !important;
   }
 }
