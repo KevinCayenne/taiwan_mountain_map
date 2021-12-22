@@ -51,8 +51,8 @@ function MountainInfoBlock(props){
                             trialData.push(tempTrial);
                         }else if(gpxDataMobileDiv){
                             const gpxId = gpxDataMobileDiv['href'].split('id=')[1];
-                            const deviceUrl = mainRequestUrl + '/index.php?q=trail&act=gpx_detail&id=';
-                            const trailGpxResp = await axios.get(corsUrl + deviceUrl + gpxId);
+                            const deviceUrl = mainRequestUrl + '/index.php?q=trail&act=gpx_detail&id=' + gpxId;
+                            const trailGpxResp = await axios.get(corsUrl + deviceUrl);
 
                             const trailGpxData = trailGpxResp.data;
                             let htmlObject = document.createElement('div');
@@ -68,7 +68,6 @@ function MountainInfoBlock(props){
                             tempTrial.trial = geoJSON.features;
                             tempTrial.visible = true;
                             tempTrial.url = deviceUrl;
-                            
                             trialData.push(tempTrial);
                         }
                     }  
@@ -86,7 +85,7 @@ function MountainInfoBlock(props){
     const loadTrial = async () => {
         setTrialDataLoading(true);
         const trialDataResp = await getMainTrialData(props.data, props.map);
-        console.log(trialDataResp);
+        // console.log(trialDataResp);
         setTrialData(trialDataResp);
         props.setCurrentTrialDataHandler(trialDataResp);
         setTrialDataLoading(false);
