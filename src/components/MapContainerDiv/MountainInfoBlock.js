@@ -152,13 +152,13 @@ function MountainInfoBlock(props){
             </div>
             {
                 panelVisible ? 
-                    <div className="col-md-3 h-100 px-2 py-2" style={{ MaxHeight: '350px', overflow: 'auto' }}>
-                        <div className="px-2 py-2 bg-light rounded shadow h-100">
-                            <div className="border-bottom">
+                    <div className="col-md-3 h-100 px-2 py-2" style={{ maxHeight: '350px', overflow: 'auto' }}>
+                        <div className="px-2 py-2 bg-light rounded shadow h-100 d-flex flex-column">
+                            <div className="border-bottom fw-bold" style={{ flex: '0 0 auto', height: 'auto' }}>
                                 <span className="pe-2">路線資料</span>
                                 { trialData.length ?  '(' + trialData.length + ')' : null }
                             </div>
-                            <div>
+                            <div style={{ flex: '1 1 100%', height: '100%' }}>
                                 {
                                     trialData.length === 0 ?
                                         <LoadingButton

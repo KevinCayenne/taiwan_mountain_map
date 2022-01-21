@@ -32,9 +32,16 @@ code {
   width: 100%;
 }
 
+.leaflet-control-layers-base > label > div{
+  display: flex;
+  align-items: center;
+  justify-content: start;
+}
+
 .leaflet-control-layers-selector{
   top: 0px;
   margin-top: 0px;
+  margin-right: 5px;
 }
 
 .leaflet-control-layers-overlays label div{
