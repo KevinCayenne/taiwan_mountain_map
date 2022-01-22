@@ -113,8 +113,15 @@ code {
   .rwd-hide{
       display: none !important;
   }
-  
+
   .mountain-img-div{
     display: none !important;
+  }
+}
+
+@media screen and (max-width: 512px) {
+  #top-search-bar{
+    top: 65px !important;
+    max-width: 80%;
   }
 }

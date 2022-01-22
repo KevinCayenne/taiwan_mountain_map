@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip, LayersControl, LayerGroup, useMap, useMapEvents } from 'react-leaflet';
 import axios from 'axios';
-import { Icon, Link, TextField } from '@mui/material';
+import { Box, Icon, IconButton, Link, TextField, Autocomplete } from '@mui/material';
 import Button from '@mui/material/Button';
 import markerMointainIcon from './MountainIcon.js';
 import GitHubIcon from '../../assets/png/GitHub-Mark/PNG/GitHub-Mark-64px.png';
@@ -30,7 +30,7 @@ function MountainLayerControlGroup(props){
             props.setMarkerImgLoadingHandler(true);
             props.setCurrentItemHandler(item);
             props.map.setView([item.lat, item.lon], 14);
-            const photo = await getMountainMainPhoto(item);
+            const photo = await props.getMountainMainPhoto(item);
             props.setCurrentItemHandler({...item, mainPhoto: photo});
             props.setMarkerImgLoadingHandler(false);
         }
@@ -39,24 +39,6 @@ function MountainLayerControlGroup(props){
             console.log(err);
         }
     }
-
-    const getMountainMainPhoto = (item) => {
-        return new Promise(async (resolve, reject) => {
-            try{
-                const mountainDataResp = await axios.get(corsUrl + mainRequestUrl + 'index.php?q=mountain&act=detail&id=' + item.id);
-                const mountainData = mountainDataResp.data;
-
-                let htmlObject = document.createElement('div');
-                htmlObject.innerHTML = mountainData;
-                const imgData = htmlObject.querySelector("meta[itemprop='image']");
-                // console.log(imgData['content']);
-                resolve(imgData['content']);
-            }
-            catch(err){
-                reject(err);
-            }
-        });
-    };
 
     return(
         <LayersControl.Overlay checked={props.checked} name={props.name}>
@@ -90,7 +72,6 @@ function MountainLayerControlGroup(props){
                                             { item.title }
                                         </Tooltip>
                                     }
-                                    
                                 </Marker>
                             )
                         : ""
@@ -130,25 +111,60 @@ function ResetPositionBtn(props){
 
 function SearchMountainInput(props){
 
-    const [searchName, setSearchName] = useState('dasda');
+    const [searchId, setSearchId] = useState('');
 
     const searchMountain = async () => {
-        console.log(searchName);
+        try{
+            const item = taiwanPeaks.find(item => item.id === String(searchId));
+
+            props.setMarkerImgLoadingHandler(true);
+            props.setCurrentItemHandler(item);
+            props.map.setView([item.lat, item.lon], 14);
+            const photo = await props.getMountainMainPhoto(item);
+            props.setCurrentItemHandler({...item, mainPhoto: photo});
+            props.setMarkerImgLoadingHandler(false);
+        }
+        catch(err){
+            props.setMarkerImgLoadingHandler(false);
+            console.log(err);
+        }
     };
 
+    const onInputChange = (e) => {
+        setSearchId(e.target.value);
+    }
+
+    useEffect(() => {
+        // console.log(props.data);
+        
+        return () => {
+        };
+    }, []);
+    
     return(
-        <div className="bg-light rounded px-1 py-1 shadow-sm d-flex align-items-center" style={{ position: 'absolute', top: '10px', left: '55px', zIndex: '100000' }}>
-            <TextField 
-                id="search-input" 
-                size="small" 
-                label="搜尋山岳名稱" 
-                variant="standard" 
-                value={searchName} 
-                onChange={e => setSearchName(e.target.value)}
+        <div 
+            id="top-search-bar" 
+            className="bg-light rounded px-1 py-1 shadow-sm d-flex align-items-center" 
+            style={{ position: 'absolute', top: '10px', left: '55px', zIndex: '100000' }}
+        >
+             <Autocomplete
+                disablePortal
+                autoHighlight
+                id="combo-box-demo"
+                options={props.data}
+                getOptionLabel={(option) => option.title + ' (' + option.height + ') ' + option.id }
+                renderOption={(props, option) => (
+                    <Box key={option.id} component="li" sx={{ '& > img': { mr: 2, flexShrink: 0 } }} {...props} value={option.id}>
+                        {option.title}
+                    </Box>
+                )}
+                sx={{ width: 300 }}
+                onChange={e => onInputChange(e)}
+                renderInput={(params) => <TextField {...params} label="搜尋山岳名稱" />}
             />
-            <Button variant="outlined" startIcon={<Icon>search</Icon>} onClick={searchMountain}>
-                搜尋
-            </Button>
+            <IconButton onClick={searchMountain}>
+                <Icon>search</Icon>
+            </IconButton>
         </div>
     )
 }
@@ -160,6 +176,39 @@ function MapContainerDiv(porps){
     const [selfPosition, setSelfPosition] = useState(null);
     const [currentTrialData, setCurrentTrialData] = useState(null);
     const [markerImgLoading, setMarkerImgLoading] = useState(false);
+
+    const [layerConfig, setLayerConfig] = useState([
+        {
+            id: 1,
+            name: '台灣百岳',
+            data: hondredPeaks,
+            check: true
+        },
+        {
+            id: 2,
+            name: '台灣小百岳',
+            data: littleHondredPeaks,
+            check: false
+        },
+        {
+            id: 3,
+            name: '谷關七雄',
+            data: guGuanSevenPeaks,
+            check: false
+        },
+        {
+            id: 4,
+            name: '太魯閣七雄',
+            data: tairokoSevenPeaks,
+            check: false
+        },
+        {
+            id: 5,
+            name: '其他山岳',
+            data: otherPeaks,
+            check: false
+        }
+    ]);
 
     const centerLatLng = [23.65, 120.9738819];
     const zoom = 8;
@@ -180,6 +229,24 @@ function MapContainerDiv(porps){
 
     const moveToHere = () => {
         map.setView(selfPosition, 14);
+    };
+
+    const getMountainMainPhoto = (item) => {
+        return new Promise(async (resolve, reject) => {
+            try{
+                const mountainDataResp = await axios.get(corsUrl + mainRequestUrl + 'index.php?q=mountain&act=detail&id=' + item.id);
+                const mountainData = mountainDataResp.data;
+
+                let htmlObject = document.createElement('div');
+                htmlObject.innerHTML = mountainData;
+                const imgData = htmlObject.querySelector("meta[itemprop='image']");
+                // console.log(imgData['content']);
+                resolve(imgData['content']);
+            }
+            catch(err){
+                reject(err);
+            }
+        });
     };
 
     function MapComponent() {
@@ -212,12 +279,20 @@ function MapContainerDiv(porps){
             setCurrentItem(null);
             setSelfPosition(null);
             setMarkerImgLoading(null);
+            setLayerConfig(null);
         }
     }, []);
 
     return (
         <div id="map-div" style={{ height: '100%', width: '100%' }}>
-            {/* <SearchMountainInput /> */}
+            <SearchMountainInput 
+                data={taiwanPeaks} 
+                map={map} 
+                setMarkerImgLoadingHandler={setMarkerImgLoading} 
+                setCurrentItemHandler={setCurrentItem} 
+                currentItem={currentItem} 
+                getMountainMainPhoto={getMountainMainPhoto} 
+            />
             { currentItem ? <MountainInfoBlock data={ currentItem } map={map} markerImgLoading={markerImgLoading} setCurrentTrialDataHandler={setCurrentTrialData} /> : null }
             <Link id="github-link" href="https://github.com/KevinCayenne/taiwan_mountain_map" underline="none">
                 <img src={GitHubIcon} alt="" />
@@ -241,17 +316,22 @@ function MapContainerDiv(porps){
                             url="https://rs.happyman.idv.tw/map/moi_osm/{z}/{x}/{y}.png"
                         />
                     </LayersControl.BaseLayer>
-                    <LayersControl.BaseLayer name="魯地圖 (彩色)">
-                        <TileLayer
-                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors 資料來源:健行筆記'
-                            url="http://rudy.tile.basecamp.tw/{z}/{x}/{y}.png"
-                        />
-                    </LayersControl.BaseLayer>
-                    <MountainLayerControlGroup name="台灣百岳" icon={markerMointainIcon} checked={true} data={hondredPeaks} map={map} setMarkerImgLoadingHandler={setMarkerImgLoading} setCurrentItemHandler={setCurrentItem} currentItem={currentItem} />
-                    <MountainLayerControlGroup name="台灣小百岳" icon={markerMointainIcon} checked={false} data={littleHondredPeaks} map={map} setMarkerImgLoadingHandler={setMarkerImgLoading} setCurrentItemHandler={setCurrentItem} currentItem={currentItem} />
-                    <MountainLayerControlGroup name="谷關七雄" icon={markerMointainIcon} checked={false} data={guGuanSevenPeaks} map={map} setMarkerImgLoadingHandler={setMarkerImgLoading} setCurrentItemHandler={setCurrentItem} currentItem={currentItem} />
-                    <MountainLayerControlGroup name="太魯閣七雄" icon={markerMointainIcon} checked={false} data={tairokoSevenPeaks} map={map} setMarkerImgLoadingHandler={setMarkerImgLoading} setCurrentItemHandler={setCurrentItem} currentItem={currentItem} />
-                    <MountainLayerControlGroup name="其他山岳" icon={markerMointainIcon} checked={false} data={otherPeaks} map={map} setMarkerImgLoadingHandler={setMarkerImgLoading} setCurrentItemHandler={setCurrentItem} currentItem={currentItem} />
+                    {
+                        layerConfig.map(layer => 
+                            <MountainLayerControlGroup 
+                                key={layer.id}
+                                name={layer.name} 
+                                icon={markerMointainIcon} 
+                                checked={layer.check} 
+                                data={layer.data}
+                                map={map} 
+                                setMarkerImgLoadingHandler={setMarkerImgLoading}
+                                setCurrentItemHandler={setCurrentItem} 
+                                currentItem={currentItem} 
+                                getMountainMainPhoto={getMountainMainPhoto} 
+                            />
+                        )
+                    }
                 </LayersControl>
                 {
                     currentTrialData ? 
