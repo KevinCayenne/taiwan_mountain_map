@@ -23,6 +23,37 @@ const guGuanSevenPeaks = taiwanPeaks.filter(item => item.label_item.length ? ite
 const tairokoSevenPeaks = taiwanPeaks.filter(item => item.label_item.length ? item.label_item[0].name === '太魯閣七雄' : '');
 const otherPeaks = taiwanPeaks.filter(item => item.label_item.length === 0);
 
+function MapMarker(props) {
+    return (
+        <Marker 
+            key={props.item.id} 
+            icon={props.icon} 
+            position={[props.item.lat, props.item.lon]}
+            eventHandlers={{ 
+                click: async () => {
+                    props.handleMarkerClick(props.item);
+                },
+            }}
+        >
+            <Popup style={{ width: '70px' }}>
+                <div className="fw-bold text-center text-light" style={{ fontSize: '25px', textShadow: 'black 0.05em 0.05em 0.1em' }}>{props.item.title}</div>
+                <div className="fw-bold text-light text-center" style={{ fontSize: '20px', textShadow: 'black 0.05em 0.05em 0.1em' }}>{props.item.height}</div>
+                <div className="text-center" style={{ fontSize: '20px' }}>
+                    <span className="badge bg-success">
+                        { props.item.label_item.length ? props.item.label_item[0].name : null }
+                    </span>
+                </div>
+            </Popup>
+            {
+                props.currentItem && props.item.id === props.currentItem.id ? null
+                : <Tooltip direction="top" offset={[0, 0]} opacity={1} permanent>
+                    { props.item.title }
+                </Tooltip>
+            }
+        </Marker>
+    )
+}
+
 function MountainLayerControlGroup(props){
 
     const handleMarkerClick = async (item) => {
@@ -47,32 +78,7 @@ function MountainLayerControlGroup(props){
                     {
                         props.data.length ?
                             props.data.map((item, index) => 
-                                <Marker 
-                                    key={item.id} 
-                                    icon={props.icon} 
-                                    position={[item.lat, item.lon]}
-                                    eventHandlers={{ 
-                                        click: async () => {
-                                            handleMarkerClick(item);
-                                        },
-                                    }}
-                                >
-                                    <Popup style={{ width: '70px' }}>
-                                        <div className="fw-bold text-center text-light" style={{ fontSize: '25px', textShadow: 'black 0.05em 0.05em 0.1em' }}>{item.title}</div>
-                                        <div className="fw-bold text-light text-center" style={{ fontSize: '20px', textShadow: 'black 0.05em 0.05em 0.1em' }}>{ item.height }</div>
-                                        <div className="text-center" style={{ fontSize: '20px' }}>
-                                            <span className="badge bg-success">
-                                                { item.label_item.length ? item.label_item[0].name : null }
-                                            </span>
-                                        </div>
-                                    </Popup>
-                                    {
-                                        props.currentItem && item.id === props.currentItem.id ? null
-                                        : <Tooltip direction="top" offset={[0, 0]} opacity={1} permanent>
-                                            { item.title }
-                                        </Tooltip>
-                                    }
-                                </Marker>
+                                <MapMarker key={item.id} icon={props.icon} item={item} handleMarkerClick={handleMarkerClick} currentItem={props.currentItem} />
                             )
                         : ""
                     }
@@ -141,32 +147,36 @@ function SearchMountainInput(props){
         };
     }, []);
     
-    return(
-        <div 
-            id="top-search-bar" 
-            className="bg-light rounded px-1 py-1 shadow-sm d-flex align-items-center" 
-            style={{ position: 'absolute', top: '10px', left: '55px', zIndex: '100000' }}
-        >
-             <Autocomplete
-                disablePortal
-                autoHighlight
-                id="combo-box-demo"
-                options={props.data}
-                getOptionLabel={(option) => option.title + ' (' + option.height + ') ' + option.id }
-                renderOption={(props, option) => (
-                    <Box key={option.id} component="li" sx={{ '& > img': { mr: 2, flexShrink: 0 } }} {...props} value={option.id}>
-                        {option.title}
-                    </Box>
-                )}
-                sx={{ width: 300 }}
-                onChange={e => onInputChange(e)}
-                renderInput={(params) => <TextField {...params} label="搜尋山岳名稱" />}
-            />
-            <IconButton onClick={searchMountain}>
-                <Icon>search</Icon>
-            </IconButton>
-        </div>
-    )
+    if(props.isShow){
+        return(
+            <div 
+                id="top-search-bar" 
+                className="bg-light rounded px-1 py-1 shadow-sm d-flex align-items-center" 
+                style={{ position: 'absolute', top: '10px', left: '55px', zIndex: '100000' }}
+            >
+                 <Autocomplete
+                    disablePortal
+                    autoHighlight
+                    id="combo-box-demo"
+                    options={props.data}
+                    getOptionLabel={(option) => option.title + ' (' + option.height + ') ' + option.id }
+                    renderOption={(props, option) => (
+                        <Box key={option.id} component="li" sx={{ '& > img': { mr: 2, flexShrink: 0 } }} {...props} value={option.id}>
+                            {option.title}
+                        </Box>
+                    )}
+                    sx={{ width: 300 }}
+                    onChange={e => onInputChange(e)}
+                    renderInput={(params) => <TextField {...params} label="搜尋山岳名稱" />}
+                />
+                <IconButton onClick={searchMountain}>
+                    <Icon>search</Icon>
+                </IconButton>
+            </div>
+        )
+    }else{
+        return null;
+    }
 }
 
 function MapContainerDiv(porps){
@@ -176,6 +186,7 @@ function MapContainerDiv(porps){
     const [selfPosition, setSelfPosition] = useState(null);
     const [currentTrialData, setCurrentTrialData] = useState(null);
     const [markerImgLoading, setMarkerImgLoading] = useState(false);
+    const [searchBarShow, setSearchBarShow] = useState(true);
 
     const [layerConfig, setLayerConfig] = useState([
         {
@@ -229,6 +240,10 @@ function MapContainerDiv(porps){
 
     const moveToHere = () => {
         map.setView(selfPosition, 14);
+    };
+
+    const toggleSearchBar = () => {
+        setSearchBarShow(!searchBarShow);
     };
 
     const getMountainMainPhoto = (item) => {
@@ -286,6 +301,7 @@ function MapContainerDiv(porps){
     return (
         <div id="map-div" style={{ height: '100%', width: '100%' }}>
             <SearchMountainInput 
+                isShow={searchBarShow}
                 data={taiwanPeaks} 
                 map={map} 
                 setMarkerImgLoadingHandler={setMarkerImgLoading} 
@@ -297,6 +313,9 @@ function MapContainerDiv(porps){
             <Link id="github-link" href="https://github.com/KevinCayenne/taiwan_mountain_map" underline="none">
                 <img src={GitHubIcon} alt="" />
             </Link>
+            <Button id="search-btn-toggle" size="small" className="w-100 text-secondary" onClick={toggleSearchBar}>
+                <Icon>search</Icon>
+            </Button>
             <Button id="here-btn" size="small" color="info" className="w-100" onClick={moveToHere}>
                 <Icon>gps_fixed</Icon>
             </Button>
@@ -353,6 +372,9 @@ function MapContainerDiv(porps){
                 {
                     selfPosition ? <Marker position={selfPosition}></Marker> : null
                 }
+                {/* {
+                    currentItem ? <MapMarker icon={currentItem.icon} item={currentItem} currentItem={currentItem} /> : null
+                } */}
             </MapContainer>
         </div>
     );

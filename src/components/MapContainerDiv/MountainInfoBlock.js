@@ -125,8 +125,8 @@ function MountainInfoBlock(props){
                         </div>
                 }
             </div>
-            <div className="col-md-6 px-2 py-2 d-flex flex-column justify-content-end">
-                <Button size="small" variant="contained" className="w-100" onClick={toggleShowPanel}>
+            <div className="col-md-6 px-2 pt-0 pb-2 d-flex flex-column justify-content-end">
+                <Button size="small" variant="contained" className="w-100" onClick={toggleShowPanel} style={{ position: 'sticky', top: '0px' }}>
                     { panelVisible ? <Icon>keyboard_arrow_down</Icon> : <Icon>expand_less</Icon> }
                 </Button>
                 {
@@ -175,14 +175,16 @@ function MountainInfoBlock(props){
                                 }
                                 {
                                     trialData.map((item, index) => 
-                                        <div key={index} className="row mx-0 py-1">
-                                            <div className="col-10 px-0">
-                                                <Button size="small" variant="outlined" className="w-100" onClick={e => togglePathVisible(item, index)}>
-                                                    <span className="align-middle">
-                                                        { index + 1 + '. ' }
-                                                        { item.trial[0].properties.name ? item.trial[0].properties.name : '路線' }
-                                                    </span>
-                                                    { item.visible ? <Icon className="align-middle">visibility</Icon> : <Icon className="align-middle">visibility_off</Icon> }
+                                        <div key={index} className="row mx-0 py-1 border-bottom">
+                                            <div className="col-8 px-0">
+                                                <span className="align-middle">
+                                                    { index + 1 + '. ' }
+                                                    { item.trial[0].properties.name ? item.trial[0].properties.name : '路線' }
+                                                </span>
+                                            </div>
+                                            <div className="col-2 d-flex align-items-center justify-content-center">
+                                                <Button size="small" className="w-100" onClick={e => togglePathVisible(item, index)}>
+                                                    { item.visible ? <Icon className="align-middle">visibility</Icon> : <Icon className="align-middle text-secondary">visibility_off</Icon> }
                                                 </Button>
                                             </div>
                                             <div className="col-2 d-flex align-items-center justify-content-center">
