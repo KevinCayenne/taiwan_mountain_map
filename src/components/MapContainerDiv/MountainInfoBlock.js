@@ -98,8 +98,18 @@ function MountainInfoBlock(props){
         props.setCurrentTrialDataHandler(newDataArr);
     };
 
+    const clearSelected = () => {
+        props.setCurrentItemHandler(null);
+    };
+
     const toggleShowPanel = () => {
         panelVisible ? setPanelVisible(false) : setPanelVisible(true);
+    };
+
+    const moveToCurrentItem = () => {
+        if(props.data){
+            props.map.setView([props.data.lat, props.data.lon], 14);
+        }
     };
 
     useEffect(() => {
@@ -125,16 +135,59 @@ function MountainInfoBlock(props){
                         </div>
                 }
             </div>
-            <div className="col-md-6 px-2 pt-0 pb-2 d-flex flex-column justify-content-end">
-                <Button size="small" variant="contained" className="w-100" onClick={toggleShowPanel} style={{ position: 'sticky', top: '0px' }}>
-                    { panelVisible ? <Icon>keyboard_arrow_down</Icon> : <Icon>expand_less</Icon> }
-                </Button>
+            <div className="col-md-6 px-2 pt-0 pb-2 d-flex flex-column justify-content-end" style={{ position: 'relative' }}>
+                <div className="text-end" style={{ position: 'sticky', top: '0px' }}>
+                    <Button
+                        className="mb-2"
+                        size="small"
+                        variant="contained"
+                        onClick={clearSelected}
+                    >
+                        清除
+                    </Button>
+                    <Button 
+                        className="mb-2 ms-2" 
+                        size="small" 
+                        variant="contained" 
+                        onClick={toggleShowPanel}
+                    >
+                        { panelVisible ? <Icon>keyboard_arrow_down</Icon> : <Icon>expand_less</Icon> }
+                    </Button>
+                </div>
+               
                 {
                     panelVisible ? 
                         <div className="px-2 py-2 rounded shadow bg-light w-100">
                             <div className="fw-bold text-start d-flex align-items-center" style={{ fontSize: '25px' }}>
                                 <span className="pe-2">{ props.data.title }</span>
-                                <Link href={ 'https://hiking.biji.co/index.php?q=mountain&act=detail&id=' + props.data.id } target="_blank" rel="noreferrer" color="green" underline="none" style={{ fontSize: "15px" }}>
+                                <Button
+                                    size="small" 
+                                    className="px-1"
+                                    onClick={moveToCurrentItem}
+                                    style={{ minWidth: '0px' }}
+                                >
+                                    <Icon className="align-middle">navigation</Icon>
+                                </Button>
+                                <Link 
+                                    href={ 'https://www.google.com/search?q=' + props.data.title + '+天氣' } 
+                                    target="_blank" 
+                                    rel="noreferrer" 
+                                    color="orange" 
+                                    underline="none" 
+                                    className="px-1"
+                                    style={{ fontSize: "15px" }}
+                                >
+                                    <Icon className="align-middle">wb_sunny</Icon>
+                                </Link>
+                                <Link 
+                                    href={ 'https://hiking.biji.co/index.php?q=mountain&act=detail&id=' + props.data.id } 
+                                    target="_blank" 
+                                    rel="noreferrer" 
+                                    color="green" 
+                                    underline="none" 
+                                    className="px-1"
+                                    style={{ fontSize: "15px" }}
+                                >
                                     <span className="align-middle">健行筆記 </span>
                                     <Icon className="align-middle">launch</Icon>
                                 </Link>

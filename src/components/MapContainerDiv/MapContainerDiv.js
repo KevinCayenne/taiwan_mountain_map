@@ -35,7 +35,7 @@ function MapMarker(props) {
                 },
             }}
         >
-            <Popup style={{ width: '70px' }}>
+            <Popup style={{ width: '70px' }} permanent>
                 <div className="fw-bold text-center text-light" style={{ fontSize: '25px', textShadow: 'black 0.05em 0.05em 0.1em' }}>{props.item.title}</div>
                 <div className="fw-bold text-light text-center" style={{ fontSize: '20px', textShadow: 'black 0.05em 0.05em 0.1em' }}>{props.item.height}</div>
                 <div className="text-center" style={{ fontSize: '20px' }}>
@@ -44,12 +44,9 @@ function MapMarker(props) {
                     </span>
                 </div>
             </Popup>
-            {
-                props.currentItem && props.item.id === props.currentItem.id ? null
-                : <Tooltip direction="top" offset={[0, 0]} opacity={1} permanent>
-                    { props.item.title }
-                </Tooltip>
-            }
+            <Tooltip direction="top" offset={[0, 0]} opacity={1} permanent>
+                { props.item.title }
+            </Tooltip>
         </Marker>
     )
 }
@@ -58,12 +55,14 @@ function MountainLayerControlGroup(props){
 
     const handleMarkerClick = async (item) => {
         try{
-            props.setMarkerImgLoadingHandler(true);
-            props.setCurrentItemHandler(item);
-            props.map.setView([item.lat, item.lon], 14);
-            const photo = await props.getMountainMainPhoto(item);
-            props.setCurrentItemHandler({...item, mainPhoto: photo});
-            props.setMarkerImgLoadingHandler(false);
+            if(props.currentItem === null || (props.currentItem.id && item.id !== props.currentItem.id)){
+                props.setMarkerImgLoadingHandler(true);
+                props.setCurrentItemHandler(item);
+                props.map.setView([item.lat, item.lon], 14);
+                const photo = await props.getMountainMainPhoto(item);
+                props.setCurrentItemHandler({...item, mainPhoto: photo});
+                props.setMarkerImgLoadingHandler(false);
+            }
         }
         catch(err){
             props.setMarkerImgLoadingHandler(false);
@@ -274,9 +273,9 @@ function MapContainerDiv(porps){
 
             },
             click(e) {
-                if(e){
-                    setCurrentItem(null);
-                }
+                // if(e){
+                //     setCurrentItem(null);
+                // }
             },
         });
         return null;
@@ -309,7 +308,7 @@ function MapContainerDiv(porps){
                 currentItem={currentItem} 
                 getMountainMainPhoto={getMountainMainPhoto} 
             />
-            { currentItem ? <MountainInfoBlock data={ currentItem } map={map} markerImgLoading={markerImgLoading} setCurrentTrialDataHandler={setCurrentTrialData} /> : null }
+            { currentItem ? <MountainInfoBlock setCurrentItemHandler={setCurrentItem} data={currentItem} map={map} markerImgLoading={markerImgLoading} setCurrentTrialDataHandler={setCurrentTrialData} /> : null }
             <Link id="github-link" href="https://github.com/KevinCayenne/taiwan_mountain_map" underline="none">
                 <img src={GitHubIcon} alt="" />
             </Link>
