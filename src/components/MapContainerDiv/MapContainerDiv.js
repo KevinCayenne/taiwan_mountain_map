@@ -192,6 +192,28 @@ function MapContainerDiv(porps){
     const [currentTrialData, setCurrentTrialData] = useState(null);
     const [markerImgLoading, setMarkerImgLoading] = useState(false);
     const [searchBarShow, setSearchBarShow] = useState(true);
+    const [layerControlList, setLayerControlList] = useState([
+        {
+            name: 'Open Street Map',
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors 資料來源:健行筆記',
+            url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+        },
+        {
+            name: 'ArcGIS衛星',
+            attribution: '&copy; <a href="https://www.maptiler.com/copyright">Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community</a> contributors 資料來源:健行筆記',
+            url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+        },
+        {
+            name: '魯地圖 (清爽)',
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> Copyright (c) 2016-2020 Rudy Chung contributors 資料來源:健行筆記',
+            url: 'https://rs.happyman.idv.tw/map/moi_osm/{z}/{x}/{y}.png'
+        },
+        {
+            name: '魯地圖 (彩色)',
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> Copyright (c) 2016-2020 Rudy Chung contributors 資料來源:健行筆記',
+            url: 'http://rudy.tile.basecamp.tw/{z}/{x}/{y}.png'
+        }
+    ]);
     const [contenxtMenuLatlng, setContenxtMenuLatlng] = useState({
         lat: 0,
         lng: 0
@@ -276,27 +298,6 @@ function MapContainerDiv(porps){
         });
     };
 
-    function MapComponent() {
-        const map = useMap();
-        const mapE = useMapEvents({
-            drag(e) {
-
-            },
-            zoom(e) {
-
-            },
-            click(e) {
-                // if(e){
-                //     setCurrentItem(null);
-                // }
-            },
-            contextmenu(e) {
-                setContenxtMenuLatlng(e.latlng);
-            }
-        });
-        return null;
-    }
-
     const handleMarkerClick = async (item) => {
         try{
           
@@ -323,6 +324,27 @@ function MapContainerDiv(porps){
             window.open('https://www.google.com.tw/maps/@' + targetLocation + ',15z', '_blank').focus();
         }
     };
+
+    function MapComponent() {
+        const map = useMap();
+        const mapE = useMapEvents({
+            drag(e) {
+
+            },
+            zoom(e) {
+
+            },
+            click(e) {
+                // if(e){
+                //     setCurrentItem(null);
+                // }
+            },
+            contextmenu(e) {
+                setContenxtMenuLatlng(e.latlng);
+            }
+        });
+        return null;
+    }
 
     useEffect(() => {
         setCurrentTrialData(null);
@@ -381,30 +403,16 @@ function MapContainerDiv(porps){
             >
                 <MapComponent />
                 <LayersControl position="topright">
-                    <LayersControl.BaseLayer checked name="Open Street Map">
-                        <TileLayer
-                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors 資料來源:健行筆記'
-                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                        />
-                    </LayersControl.BaseLayer>
-                    <LayersControl.BaseLayer name="ArcGIS衛星">
-                        <TileLayer
-                            attribution='&copy; <a href="https://www.maptiler.com/copyright">Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community</a> contributors 資料來源:健行筆記'
-                            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                        />
-                    </LayersControl.BaseLayer>
-                    <LayersControl.BaseLayer name="魯地圖 (清爽)">
-                        <TileLayer
-                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> Copyright (c) 2016-2020 Rudy Chung contributors 資料來源:健行筆記'
-                            url="https://rs.happyman.idv.tw/map/moi_osm/{z}/{x}/{y}.png"
-                        />
-                    </LayersControl.BaseLayer>
-                    <LayersControl.BaseLayer name="魯地圖 (彩色)">
-                        <TileLayer
-                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> Copyright (c) 2016-2020 Rudy Chung contributors 資料來源:健行筆記'
-                            url="http://rudy.tile.basecamp.tw/{z}/{x}/{y}.png"
-                        />
-                    </LayersControl.BaseLayer>
+                    {
+                        layerControlList.map((layer, index) => 
+                            <LayersControl.BaseLayer key={layer.name} checked={ index === 0 ? true : false } name={layer.name}>
+                                <TileLayer
+                                    attribution={layer.attribution}
+                                    url={layer.url}
+                                />
+                            </LayersControl.BaseLayer>
+                        )
+                    }
                     {
                         layerConfig.map(layer => 
                             <MountainLayerControlGroup 
