@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip, LayersControl, LayerGroup, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip, ScaleControl, LayersControl, LayerGroup, useMap, useMapEvents } from 'react-leaflet';
 import axios from 'axios';
 import 'leaflet-contextmenu';
 import 'leaflet-contextmenu/dist/leaflet.contextmenu.css';
 import { Box, Icon, IconButton, Link, TextField, Autocomplete } from '@mui/material';
 import Button from '@mui/material/Button';
+import Backdrop from '@mui/material/Backdrop';
+import CircularProgress from '@mui/material/CircularProgress';
 import markerMointainIcon from './MountainIcon.js';
 import GitHubIcon from '../../assets/png/GitHub-Mark/PNG/GitHub-Mark-64px.png';
 import MarkerClusterGroup from 'react-leaflet-markercluster';
@@ -192,6 +194,7 @@ function MapContainerDiv(porps){
     const [currentTrialData, setCurrentTrialData] = useState(null);
     const [markerImgLoading, setMarkerImgLoading] = useState(false);
     const [searchBarShow, setSearchBarShow] = useState(true);
+    const [backDropOpen, setBackDropOpen] = useState(false);
     const [layerControlList, setLayerControlList] = useState([
         {
             name: 'Open Street Map',
@@ -214,10 +217,6 @@ function MapContainerDiv(porps){
             url: 'http://rudy.tile.basecamp.tw/{z}/{x}/{y}.png'
         }
     ]);
-    const [contenxtMenuLatlng, setContenxtMenuLatlng] = useState({
-        lat: 0,
-        lng: 0
-    });
 
     const [layerConfig, setLayerConfig] = useState([
         {
@@ -308,6 +307,7 @@ function MapContainerDiv(porps){
     }
 
     const getThisLocation = async (e) => {
+        handleBackDropOpen();
         let yourLocation, targetLocation = null;
 
         yourLocation = await getUserPosition();
@@ -319,10 +319,20 @@ function MapContainerDiv(porps){
         // console.log(yourLocation, targetLocation);
 
         if(yourLocation && targetLocation){
+            handleBackDropClose();
             window.open('https://www.google.com.tw/maps/dir/' + yourLocation + '/' + targetLocation + '/', '_blank').focus();
         }else{
+            handleBackDropClose();
             window.open('https://www.google.com.tw/maps/@' + targetLocation + ',15z', '_blank').focus();
         }
+    };
+
+    const handleBackDropOpen = () => {
+        setBackDropOpen(true);
+    };
+
+    const handleBackDropClose = () => {
+        setBackDropOpen(false);
     };
 
     function MapComponent() {
@@ -339,9 +349,6 @@ function MapContainerDiv(porps){
                 //     setCurrentItem(null);
                 // }
             },
-            contextmenu(e) {
-                setContenxtMenuLatlng(e.latlng);
-            }
         });
         return null;
     }
@@ -359,12 +366,19 @@ function MapContainerDiv(porps){
             setSelfPosition(null);
             setMarkerImgLoading(null);
             setLayerConfig(null);
-            setContenxtMenuLatlng(null);
+            setLayerControlList(null);
+            setBackDropOpen(null);
         }
     }, []);
 
     return (
         <div id="map-div" style={{ height: '100%', width: '100%' }}>
+            <Backdrop
+                sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }}
+                open={backDropOpen}
+            >
+                <CircularProgress color="inherit" />
+            </Backdrop>
             <SearchMountainInput 
                 isShow={searchBarShow}
                 data={taiwanPeaks} 
@@ -402,6 +416,7 @@ function MapContainerDiv(porps){
                 whenCreated={setMap}
             >
                 <MapComponent />
+                <ScaleControl position="topleft" />
                 <LayersControl position="topright">
                     {
                         layerControlList.map((layer, index) => 
