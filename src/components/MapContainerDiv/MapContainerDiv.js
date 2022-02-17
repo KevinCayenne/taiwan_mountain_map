@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip, LayersControl, LayerGroup, useMap, useMapEvents } from 'react-leaflet';
 import axios from 'axios';
+import 'leaflet-contextmenu';
+import 'leaflet-contextmenu/dist/leaflet.contextmenu.css';
 import { Box, Icon, IconButton, Link, TextField, Autocomplete } from '@mui/material';
 import Button from '@mui/material/Button';
 import markerMointainIcon from './MountainIcon.js';
@@ -8,6 +10,7 @@ import GitHubIcon from '../../assets/png/GitHub-Mark/PNG/GitHub-Mark-64px.png';
 import MarkerClusterGroup from 'react-leaflet-markercluster';
 
 import MountainInfoBlock from './MountainInfoBlock';
+
 
 // require('leaflet/dist/leaflet.css'); // inside .js file
 require('react-leaflet-markercluster/dist/styles.min.css'); // inside .js file
@@ -143,6 +146,7 @@ function SearchMountainInput(props){
         // console.log(props.data);
         
         return () => {
+            setSearchId(null);
         };
     }, []);
     
@@ -158,6 +162,8 @@ function SearchMountainInput(props){
                     autoHighlight
                     id="combo-box-demo"
                     options={props.data}
+                    isOptionEqualToValue={(option, value) => option.id === value.id}
+                    value={ props.currentItem ? props.currentItem : null }
                     getOptionLabel={(option) => option.title + ' (' + option.height + ') ' + option.id }
                     renderOption={(props, option) => (
                         <Box key={option.id} component="li" sx={{ '& > img': { mr: 2, flexShrink: 0 } }} {...props} value={option.id}>
@@ -186,6 +192,10 @@ function MapContainerDiv(porps){
     const [currentTrialData, setCurrentTrialData] = useState(null);
     const [markerImgLoading, setMarkerImgLoading] = useState(false);
     const [searchBarShow, setSearchBarShow] = useState(true);
+    const [contenxtMenuLatlng, setContenxtMenuLatlng] = useState({
+        lat: 0,
+        lng: 0
+    });
 
     const [layerConfig, setLayerConfig] = useState([
         {
@@ -224,17 +234,20 @@ function MapContainerDiv(porps){
     const zoom = 8;
 
     const getUserPosition = () => {
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(getPosition);
-        } else { 
-            console.log('Not support navigation.');
-        }
-    };
-
-    const getPosition = (position) => {
-        // console.log(position);
-        if(position.coords)
-        setSelfPosition([position.coords.latitude, position.coords.longitude]);
+        return new Promise((resolve, reject) => {
+            if(navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(position => {
+                    if(position.coords){
+                        setSelfPosition([position.coords.latitude, position.coords.longitude]);
+                        // console.log([position.coords.latitude, position.coords.longitude]);
+                        resolve([position.coords.latitude, position.coords.longitude]);
+                    }
+                });
+            } else { 
+                console.log('Not support navigation.');
+                resolve(false);
+            }
+        });
     };
 
     const moveToHere = () => {
@@ -277,9 +290,39 @@ function MapContainerDiv(porps){
                 //     setCurrentItem(null);
                 // }
             },
+            contextmenu(e) {
+                setContenxtMenuLatlng(e.latlng);
+            }
         });
         return null;
     }
+
+    const handleMarkerClick = async (item) => {
+        try{
+          
+        }
+        catch(err){
+            console.log(err);
+        }
+    }
+
+    const getThisLocation = async (e) => {
+        let yourLocation, targetLocation = null;
+
+        yourLocation = await getUserPosition();
+        if(yourLocation){
+            yourLocation = yourLocation[0] + ',' + yourLocation[1];
+        }
+       
+        targetLocation = e.latlng.lat + ',' + e.latlng.lng;
+        // console.log(yourLocation, targetLocation);
+
+        if(yourLocation && targetLocation){
+            window.open('https://www.google.com.tw/maps/dir/' + yourLocation + '/' + targetLocation + '/', '_blank').focus();
+        }else{
+            window.open('https://www.google.com.tw/maps/@' + targetLocation + ',15z', '_blank').focus();
+        }
+    };
 
     useEffect(() => {
         setCurrentTrialData(null);
@@ -294,6 +337,7 @@ function MapContainerDiv(porps){
             setSelfPosition(null);
             setMarkerImgLoading(null);
             setLayerConfig(null);
+            setContenxtMenuLatlng(null);
         }
     }, []);
 
@@ -319,7 +363,22 @@ function MapContainerDiv(porps){
                 <Icon>gps_fixed</Icon>
             </Button>
             { map ? <ResetPositionBtn map={map} center={centerLatLng} zoom={zoom} /> : null }
-            <MapContainer center={centerLatLng} whenCreated={setMap} zoom={zoom} scrollWheelZoom={true} zoomControl={true} style={{ height: '100%', width: '100%' }}>
+            <MapContainer 
+                center={centerLatLng} 
+                zoom={zoom} 
+                scrollWheelZoom={true} 
+                zoomControl={true} 
+                style={{ height: '100%', width: '100%' }}
+                contextmenu={true}
+                contextmenuWidth={130}
+                contextmenuItems={[
+                  {
+                    text:'google導航到這裡',
+                    callback: e => getThisLocation(e)
+                  }
+                ]}
+                whenCreated={setMap}
+            >
                 <MapComponent />
                 <LayersControl position="topright">
                     <LayersControl.BaseLayer checked name="Open Street Map">
@@ -328,10 +387,22 @@ function MapContainerDiv(porps){
                             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                         />
                     </LayersControl.BaseLayer>
+                    <LayersControl.BaseLayer name="ArcGIS衛星">
+                        <TileLayer
+                            attribution='&copy; <a href="https://www.maptiler.com/copyright">Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community</a> contributors 資料來源:健行筆記'
+                            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                        />
+                    </LayersControl.BaseLayer>
                     <LayersControl.BaseLayer name="魯地圖 (清爽)">
                         <TileLayer
-                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors 資料來源:健行筆記'
+                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> Copyright (c) 2016-2020 Rudy Chung contributors 資料來源:健行筆記'
                             url="https://rs.happyman.idv.tw/map/moi_osm/{z}/{x}/{y}.png"
+                        />
+                    </LayersControl.BaseLayer>
+                    <LayersControl.BaseLayer name="魯地圖 (彩色)">
+                        <TileLayer
+                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> Copyright (c) 2016-2020 Rudy Chung contributors 資料來源:健行筆記'
+                            url="http://rudy.tile.basecamp.tw/{z}/{x}/{y}.png"
                         />
                     </LayersControl.BaseLayer>
                     {
@@ -371,9 +442,9 @@ function MapContainerDiv(porps){
                 {
                     selfPosition ? <Marker position={selfPosition}></Marker> : null
                 }
-                {/* {
-                    currentItem ? <MapMarker icon={currentItem.icon} item={currentItem} currentItem={currentItem} /> : null
-                } */}
+                {
+                    currentItem ? <MapMarker icon={markerMointainIcon} item={currentItem} currentItem={currentItem} handleMarkerClick={handleMarkerClick} /> : null
+                }
             </MapContainer>
         </div>
     );

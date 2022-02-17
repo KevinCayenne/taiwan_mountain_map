@@ -130,6 +130,10 @@ code {
   display: flex;
 }
 
+.leaflet-contextmenu {
+  z-index: 1000;
+}
+
 @media screen and (max-width: 768px) {
   .rwd-hide{
       display: none !important;
