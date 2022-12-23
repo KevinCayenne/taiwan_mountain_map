@@ -35,7 +35,7 @@ function MountainInfoBlock(props){
                         let htmlObject = document.createElement('div');
                         htmlObject.innerHTML = trailData;
                         let gpxDataDiv = htmlObject.querySelector("#interactive_map");
-                        let gpxDataMobileDiv = htmlObject.querySelector(".flex.col-gap-20 > a");
+                        let gpxDataMobileDiv = htmlObject.querySelector(".flex.space-x-5 > a");
 
                         if(gpxDataDiv){
                             let gpxData = gpxDataDiv.attributes['data-value'].value;

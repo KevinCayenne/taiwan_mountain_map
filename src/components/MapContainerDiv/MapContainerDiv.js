@@ -209,13 +209,8 @@ function MapContainerDiv(porps){
         {
             name: '魯地圖 (清爽)',
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> Copyright (c) 2016-2020 Rudy Chung contributors 資料來源:健行筆記',
-            url: 'https://rs.happyman.idv.tw/map/moi_osm/{z}/{x}/{y}.png'
+            url: 'https://tile.happyman.idv.tw/map/moi_osm/{z}/{x}/{y}.png'
         },
-        {
-            name: '魯地圖 (彩色)',
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> Copyright (c) 2016-2020 Rudy Chung contributors 資料來源:健行筆記',
-            url: 'http://rudy.tile.basecamp.tw/{z}/{x}/{y}.png'
-        }
     ]);
 
     const [layerConfig, setLayerConfig] = useState([
@@ -296,15 +291,6 @@ function MapContainerDiv(porps){
             }
         });
     };
-
-    const handleMarkerClick = async (item) => {
-        try{
-          
-        }
-        catch(err){
-            console.log(err);
-        }
-    }
 
     const getThisLocation = async (e) => {
         handleBackDropOpen();
@@ -466,7 +452,7 @@ function MapContainerDiv(porps){
                     selfPosition ? <Marker position={selfPosition}></Marker> : null
                 }
                 {
-                    currentItem ? <MapMarker icon={markerMointainIcon} item={currentItem} currentItem={currentItem} handleMarkerClick={handleMarkerClick} /> : null
+                    currentItem ? <MapMarker icon={markerMointainIcon} item={currentItem} currentItem={currentItem} /> : null
                 }
             </MapContainer>
         </div>
