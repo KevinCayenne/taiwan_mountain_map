@@ -21,3 +21,8 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# generated route data (built by scripts/build_routes.py in CI)
+/public/data/routes
+*.osm.pbf
+__pycache__/

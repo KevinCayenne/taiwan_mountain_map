@@ -17,7 +17,7 @@ import {
 } from '@mui/material';
 import LoadingButton from '@mui/lab/LoadingButton';
 import { getCategory, formatCounty, bijiMountainUrl, bijiTrailUrl, ROUTE_COLORS } from './utils';
-import { fetchHikingRoutes, prefetchHikingRoutes } from './openData';
+import { fetchHikingRoutes, fetchRouteIndex, prefetchHikingRoutes } from './openData';
 
 export const PANEL_WIDTH = 380;
 
@@ -81,16 +81,27 @@ function MountainInfoBlock({ data, photoLoading, isDesktop, onClose, onFocus, on
     const [summaryOpen, setSummaryOpen] = useState(false);
     const [bijiOpen, setBijiOpen] = useState(false);
     const [photoError, setPhotoError] = useState(false);
+    const [routeIndex, setRouteIndex] = useState(null);
 
     const category = getCategory(data);
     const relatedTrials = data.related_trials || [];
     const photo = data.photo;
 
-    // Start the route query as soon as the panel opens, so the button is usually instant.
+    // Routes are pre-built static files: read the index (route counts) and prefetch
+    // this mountain's routes as soon as the panel opens.
     useEffect(() => {
+        let active = true;
         prefetchHikingRoutes(data);
+        fetchRouteIndex().then(index => {
+            if (!active || !index) return;
+            setRouteIndex(index);
+            if (!index.routes[data.id]) setRouteStatus('loaded');
+        });
+        return () => { active = false; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [data.id]);
+
+    const routeCount = routeIndex ? (routeIndex.routes[data.id] || 0) : null;
 
     const updateTrialData = (next) => {
         setTrialData(next);
@@ -117,7 +128,7 @@ function MountainInfoBlock({ data, photoLoading, isDesktop, onClose, onFocus, on
         } catch (err) {
             console.log(err);
             setRouteStatus('error');
-            notify('路線查詢失敗，請稍後再試', 'warning');
+            notify('路線載入失敗，請稍後再試', 'warning');
         }
     };
 
@@ -297,13 +308,10 @@ function MountainInfoBlock({ data, photoLoading, isDesktop, onClose, onFocus, on
                         <Stack direction="row" alignItems="center" spacing={1}>
                             <Icon fontSize="small" color="primary">route</Icon>
                             <Typography variant="subtitle2" fontWeight={700}>登山路線</Typography>
-                            {routeStatus === 'loaded' ? <Chip size="small" label={trialData.length} /> : null}
+                            {routeStatus === 'loaded' || routeCount !== null ?
+                                <Chip size="small" label={routeStatus === 'loaded' ? trialData.length : routeCount} />
+                            : null}
                         </Stack>
-                        {routeStatus === 'loaded' || routeStatus === 'error' ?
-                            <Button size="small" startIcon={<Icon>refresh</Icon>} onClick={loadRoutes}>
-                                重新查詢
-                            </Button>
-                        : null}
                     </Stack>
 
                     {routeStatus === 'idle' || routeStatus === 'loading' || routeStatus === 'error' ?
@@ -315,7 +323,9 @@ function MountainInfoBlock({ data, photoLoading, isDesktop, onClose, onFocus, on
                             startIcon={<Icon>directions_walk</Icon>}
                             variant="contained"
                         >
-                            {routeStatus === 'loading' ? '路線查詢中…' : '在地圖上顯示附近路線'}
+                            {routeStatus === 'loading' ? '路線載入中…'
+                                : routeStatus === 'error' ? '重新載入路線'
+                                : routeCount ? `在地圖上顯示路線（${routeCount}）` : '在地圖上顯示附近路線'}
                         </LoadingButton>
                     : !trialData.length ?
                         <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'grey.50', border: 1, borderColor: 'divider' }}>
@@ -365,13 +375,11 @@ function MountainInfoBlock({ data, photoLoading, isDesktop, onClose, onFocus, on
                         </Stack>
                     }
 
-                    {routeStatus === 'loaded' ?
-                        <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 1 }}>
-                            路線資料 ©{' '}
-                            <Link href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</Link>
-                            {' '}貢獻者（ODbL），僅供參考，出發前請確認最新路況。
-                        </Typography>
-                    : null}
+                    <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 1 }}>
+                        路線資料 ©{' '}
+                        <Link href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</Link>
+                        {' '}貢獻者（ODbL）{routeIndex && routeIndex.generated ? `，更新於 ${routeIndex.generated}` : ''}。僅供參考，出發前請確認最新路況。
+                    </Typography>
 
                     {relatedTrials.length ?
                         <Box sx={{ mt: 1.5 }}>

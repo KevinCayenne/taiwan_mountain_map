@@ -1,6 +1,4 @@
-import { matchesMountain, fetchHikingRoutes, fetchMountainPhoto } from './openData';
-
-beforeEach(() => window.localStorage.clear());
+import { matchesMountain, fetchHikingRoutes, fetchMountainPhoto, resetRouteCache } from './openData';
 
 const yushan = { id: '1', title: '玉山主峰', nick_name: '新高山∕摩里遜山', lat: '23.47', lon: '120.957' };
 
@@ -34,81 +32,60 @@ describe('matchesMountain', () => {
 
 const jsonResponse = (body) => Promise.resolve({ ok: true, json: () => Promise.resolve(body) });
 
+const response = (body, { status = 200, type = 'application/json' } = {}) => Promise.resolve({
+    ok: status >= 200 && status < 300,
+    status,
+    headers: { get: (name) => (name.toLowerCase() === 'content-type' ? type : null) },
+    json: () => Promise.resolve(body),
+});
+
 describe('fetchHikingRoutes', () => {
+    beforeEach(() => resetRouteCache());
     afterEach(() => { delete global.fetch; });
 
-    test('turns relations and named paths into routes', async () => {
-        global.fetch = jest.fn(() => jsonResponse({
-            elements: [
-                {
-                    type: 'relation', id: 11, tags: { route: 'hiking', name: '玉山主峰線' },
-                    members: [
-                        { type: 'way', geometry: [{ lat: 23.47, lon: 120.95 }, { lat: 23.46, lon: 120.94 }] },
-                        { type: 'node', lat: 23.47, lon: 120.95 },
-                    ],
-                },
-                { type: 'way', id: 21, tags: { highway: 'path', name: '玉山主峰線' }, geometry: [{ lat: 1, lon: 1 }, { lat: 2, lon: 2 }] },
-                { type: 'way', id: 22, tags: { highway: 'path', name: '八通關古道' }, geometry: [{ lat: 23.4, lon: 120.9 }, { lat: 23.41, lon: 120.91 }] },
-                { type: 'way', id: 23, tags: { highway: 'path', name: '八通關古道' }, geometry: [{ lat: 23.41, lon: 120.91 }, { lat: 23.42, lon: 120.92 }] },
-            ],
-        }));
+    const route = { id: 'relation/1', name: '玉山主峰線', url: 'https://www.openstreetmap.org/relation/1', lines: [[[23.47, 120.957], [23.46, 120.95]]] };
 
-        const routes = await fetchHikingRoutes(yushan);
+    test('loads the pre-built routes of a mountain listed in the index', async () => {
+        global.fetch = jest.fn(url => (url.endsWith('/index.json')
+            ? response({ generated: '2026-11-08', routes: { 1: 1 } })
+            : response([route])));
 
-        expect(routes).toEqual([
-            { id: 'relation/11', name: '玉山主峰線', url: 'https://www.openstreetmap.org/relation/11', lines: [[[23.47, 120.95], [23.46, 120.94]]] },
-            {
-                id: 'way/22', name: '八通關古道', url: 'https://www.openstreetmap.org/way/22',
-                lines: [[[23.4, 120.9], [23.41, 120.91]], [[23.41, 120.91], [23.42, 120.92]]],
-            },
-        ]);
-        const body = global.fetch.mock.calls[0][1].body.get('data');
-        expect(body).toContain('relation[route~"^(hiking|foot)$"](23.44300,120.93000,23.49700,120.98400)');
-        expect(body).not.toContain('around:');
+        await expect(fetchHikingRoutes(yushan)).resolves.toEqual([route]);
+        expect(global.fetch.mock.calls.map(c => c[0])).toEqual(['/data/routes/index.json', '/data/routes/1.json']);
     });
 
-    test('caches routes per mountain and shares in-flight requests', async () => {
-        global.fetch = jest.fn(() => jsonResponse({ elements: [
-            { type: 'way', id: 1, tags: { name: '步道' }, geometry: [{ lat: 1, lon: 1 }, { lat: 2, lon: 2 }] },
-        ] }));
-
-        const [a, b] = await Promise.all([fetchHikingRoutes(yushan), fetchHikingRoutes(yushan)]);
-        const c = await fetchHikingRoutes(yushan);
-
-        expect(global.fetch).toHaveBeenCalledTimes(1);
-        expect(a).toEqual(b);
-        expect(c).toEqual(a);
-    });
-
-    test('asks the backup server when the first is slow, and uses whichever answers first', async () => {
-        jest.useFakeTimers();
-        let firstSignal;
-        global.fetch = jest.fn()
-            .mockImplementationOnce((url, opts) => { firstSignal = opts.signal; return new Promise(() => {}); })
-            .mockImplementationOnce(() => jsonResponse({ elements: [] }));
-
-        const result = fetchHikingRoutes({ ...yushan, id: 'slow' });
-        expect(global.fetch).toHaveBeenCalledTimes(1);
-        jest.advanceTimersByTime(4000);
-        expect(global.fetch).toHaveBeenCalledTimes(2);
-
-        await expect(result).resolves.toEqual([]);
-        expect(firstSignal.aborted).toBe(true);
-        jest.useRealTimers();
-    });
-
-    test('falls back to the second Overpass server', async () => {
-        global.fetch = jest.fn()
-            .mockImplementationOnce(() => Promise.resolve({ ok: false, status: 504 }))
-            .mockImplementationOnce(() => jsonResponse({ elements: [] }));
+    test('skips the request for mountains without routes', async () => {
+        global.fetch = jest.fn(() => response({ generated: '2026-11-08', routes: { 99: 2 } }));
 
         await expect(fetchHikingRoutes(yushan)).resolves.toEqual([]);
-        expect(global.fetch).toHaveBeenCalledTimes(2);
+        expect(global.fetch).toHaveBeenCalledTimes(1);
     });
 
-    test('throws when every server fails', async () => {
-        global.fetch = jest.fn(() => Promise.resolve({ ok: false, status: 429 }));
-        await expect(fetchHikingRoutes(yushan)).rejects.toThrow('Overpass 429');
+    test('shares one request between prefetch and click, and loads the index once', async () => {
+        global.fetch = jest.fn(url => (url.endsWith('/index.json')
+            ? response({ routes: { 1: 1, 2: 1 } })
+            : response([route])));
+
+        await Promise.all([fetchHikingRoutes(yushan), fetchHikingRoutes(yushan), fetchHikingRoutes({ id: '2' })]);
+        expect(global.fetch).toHaveBeenCalledTimes(3);
+    });
+
+    test('works without an index, treating a missing file as no routes', async () => {
+        global.fetch = jest.fn(url => (url.endsWith('/index.json') ? response(null, { status: 404 }) : response(null, { status: 404 })));
+        await expect(fetchHikingRoutes(yushan)).resolves.toEqual([]);
+    });
+
+    test('ignores the dev server answering with index.html', async () => {
+        global.fetch = jest.fn(() => response('<html>', { type: 'text/html' }));
+        await expect(fetchHikingRoutes(yushan)).resolves.toEqual([]);
+    });
+
+    test('rejects on a server error and retries on the next call', async () => {
+        global.fetch = jest.fn(url => (url.endsWith('/index.json') ? response({ routes: { 1: 1 } }) : response(null, { status: 500 })));
+        await expect(fetchHikingRoutes(yushan)).rejects.toThrow('routes 500');
+
+        global.fetch = jest.fn(url => (url.endsWith('/index.json') ? response({ routes: { 1: 1 } }) : response([route])));
+        await expect(fetchHikingRoutes(yushan)).resolves.toEqual([route]);
     });
 });
 
