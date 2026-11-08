@@ -1,0 +1,71 @@
+name: Build routes and deploy
+
+# Pre-computes hiking routes near each mountain from the OpenStreetMap Taiwan
+# extract (scripts/build_routes.py), builds the site and deploys it to the
+# gh-pages branch. Pull requests only build, to check the code and print route
+# coverage. The monthly run refreshes the route data.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  schedule:
+    - cron: '23 18 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        run: pip install -r scripts/requirements.txt
+
+      - name: Test route builder
+        working-directory: scripts
+        run: python -m unittest -v test_build_routes
+
+      - name: Download OpenStreetMap Taiwan extract
+        run: curl -fsSL --retry 3 -o taiwan-latest.osm.pbf https://download.geofabrik.de/asia/taiwan-latest.osm.pbf
+
+      - name: Build route data
+        run: |
+          python scripts/build_routes.py taiwan-latest.osm.pbf src/assets/json/mountain_data_new.json public/data/routes \
+            --source "OpenStreetMap (Geofabrik taiwan-latest)" | tee route-summary.txt
+          { echo '### Route coverage'; echo '```'; cat route-summary.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: yarn
+
+      - name: Install JS dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Test
+        run: CI=true yarn test --watchAll=false src/components
+
+      - name: Build site
+        run: CI=true yarn build
+
+      - name: Deploy to GitHub Pages
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./build
+          publish_branch: gh-pages

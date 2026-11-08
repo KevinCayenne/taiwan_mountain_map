@@ -1,29 +1,16 @@
 // Open data sources used for mountain photos and hiking routes.
 // Both APIs allow cross-origin requests from the browser, so no proxy is needed.
 //  - Photos: Wikipedia (zh) + Wikimedia Commons, CC licensed, credited in the UI.
-//  - Routes: OpenStreetMap via the Overpass API, ODbL, credited in the UI.
+//  - Routes: OpenStreetMap, ODbL, credited in the UI. Pre-computed at deploy time by
+//    scripts/build_routes.py and served as static files from data/routes/.
 
 const WIKIPEDIA_API = 'https://zh.wikipedia.org/w/api.php';
 const COMMONS_API = 'https://commons.wikimedia.org/w/api.php';
-const OVERPASS_APIS = [
-    'https://overpass-api.de/api/interpreter',
-    'https://overpass.kumi.systems/api/interpreter',
-];
 
 const PHOTO_WIDTH = 800;
 const ARTICLE_RADIUS_M = 2000;
 const NEARBY_PHOTO_RADIUS_M = 1000;
-// Search boxes around the peak (1° latitude ≈ 111 km). Bounding boxes use Overpass's
-// spatial index and are much faster than around: radius filters.
-const ROUTE_RELATION_DEG = 0.027; // ~3 km
-const NAMED_PATH_DEG = 0.018; // ~2 km
-const ROUTE_CLIP_DEG = 0.08; // clip long-distance trails to ~9 km around the peak
-const MAX_ROUTES = 10;
-const OVERPASS_TIMEOUT_S = 15;
-const OVERPASS_HEDGE_MS = 4000; // ask the backup server if the first is slow
-const ROUTE_CACHE_KEY = 'routes-cache-v1';
-const ROUTE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const ROUTE_CACHE_MAX = 40;
+const ROUTES_BASE = `${process.env.PUBLIC_URL || ''}/data/routes`;
 
 const mediaWiki = async (api, params) => {
     const query = new URLSearchParams({ format: 'json', formatversion: '2', origin: '*', ...params });
@@ -141,152 +128,48 @@ export const fetchMountainPhoto = async (item) => {
     return findNearbyCommonsPhoto(item);
 };
 
-const overpassRequest = async (api, query, signal) => {
-    const resp = await fetch(api, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ data: query }),
-        signal,
-    });
-    if (!resp.ok) throw new Error(`Overpass ${resp.status}`);
+let routeIndexRequest = null;
+
+// {generated, source, routes: {mountain id: route count}}, or null if unavailable
+// (e.g. local development without generated data).
+export const fetchRouteIndex = () => {
+    if (!routeIndexRequest) {
+        routeIndexRequest = fetch(`${ROUTES_BASE}/index.json`)
+            .then(resp => (resp.ok && /json/.test(resp.headers.get('content-type') || '') ? resp.json() : null))
+            .catch(() => null);
+    }
+    return routeIndexRequest;
+};
+
+const routeRequests = new Map();
+
+const requestRoutes = async (item) => {
+    const index = await fetchRouteIndex();
+    if (index && !index.routes[item.id]) return [];
+    const resp = await fetch(`${ROUTES_BASE}/${encodeURIComponent(item.id)}.json`);
+    if (resp.status === 404) return [];
+    if (!resp.ok) throw new Error(`routes ${resp.status}`);
+    // The dev server answers unknown paths with index.html.
+    if (!/json/.test(resp.headers.get('content-type') || '')) return [];
     return resp.json();
 };
 
-// Hedged request: start with the first server; if it fails, or has not answered
-// within OVERPASS_HEDGE_MS, also ask the next one. The first success wins and the
-// other requests are aborted. Every request gives up after OVERPASS_TIMEOUT_S.
-const overpass = (query) => new Promise((resolve, reject) => {
-    const controllers = [];
-    const timers = [];
-    let pending = 0;
-    let started = 0;
-    let settled = false;
-    let lastError;
-
-    const finish = (fn, value) => {
-        if (settled) return;
-        settled = true;
-        timers.forEach(clearTimeout);
-        controllers.forEach(c => c.abort());
-        fn(value);
-    };
-
-    const startNext = () => {
-        if (settled || started >= OVERPASS_APIS.length) return;
-        const api = OVERPASS_APIS[started++];
-        const controller = new AbortController();
-        controllers.push(controller);
-        timers.push(setTimeout(() => controller.abort(), (OVERPASS_TIMEOUT_S + 2) * 1000));
-        timers.push(setTimeout(startNext, OVERPASS_HEDGE_MS));
-        pending++;
-        overpassRequest(api, query, controller.signal)
-            .then(data => finish(resolve, data))
-            .catch(err => {
-                lastError = err.name === 'AbortError' ? new Error('Overpass timeout') : err;
-                pending--;
-                if (started < OVERPASS_APIS.length) startNext();
-                else if (pending === 0) finish(reject, lastError);
-            });
-    };
-
-    startNext();
-});
-
-// Small per-browser cache so a mountain's routes load instantly the next time.
-const readRouteCache = () => {
-    try {
-        return JSON.parse(window.localStorage.getItem(ROUTE_CACHE_KEY)) || {};
-    } catch (err) {
-        return {};
-    }
-};
-
-const getCachedRoutes = (id) => {
-    const entry = readRouteCache()[id];
-    return entry && Date.now() - entry.time < ROUTE_CACHE_TTL_MS ? entry.routes : null;
-};
-
-const setCachedRoutes = (id, routes) => {
-    try {
-        const cache = readRouteCache();
-        cache[id] = { time: Date.now(), routes };
-        const recent = Object.entries(cache)
-            .sort((a, b) => b[1].time - a[1].time)
-            .slice(0, ROUTE_CACHE_MAX);
-        window.localStorage.setItem(ROUTE_CACHE_KEY, JSON.stringify(Object.fromEntries(recent)));
-    } catch (err) {
-        // Storage may be full or unavailable (private mode); the cache is optional.
-    }
-};
-
-const inFlightRoutes = new Map();
-
-const toLine = (geometry) => (geometry || [])
-    .filter(p => p && typeof p.lat === 'number' && typeof p.lon === 'number')
-    .map(p => [p.lat, p.lon]);
-
-const routeName = (tags = {}) => tags['name:zh'] || tags.name || tags['name:en'] || '';
-
-const boxAround = (lat, lon, deg) => [lat - deg, lon - deg, lat + deg, lon + deg].map(n => n.toFixed(5)).join(',');
-
-// Hiking route relations near the peak, plus named footpaths that are not part of one.
-const queryHikingRoutes = async (item) => {
-    const lat = Number(item.lat);
-    const lon = Number(item.lon);
-    const query = `[out:json][timeout:${OVERPASS_TIMEOUT_S}];
-relation[route~"^(hiking|foot)$"](${boxAround(lat, lon, ROUTE_RELATION_DEG)})->.r;
-way[highway~"^(path|footway)$"][name](${boxAround(lat, lon, NAMED_PATH_DEG)})->.w;
-.r out tags geom(${boxAround(lat, lon, ROUTE_CLIP_DEG)}) qt;
-.w out tags geom qt;`;
-
-    const data = await overpass(query);
-    const elements = data.elements || [];
-
-    const relations = elements
-        .filter(el => el.type === 'relation')
-        .map(el => ({
-            id: `relation/${el.id}`,
-            name: routeName(el.tags) || 'OpenStreetMap 登山路線',
-            url: `https://www.openstreetmap.org/relation/${el.id}`,
-            lines: (el.members || []).filter(m => m.type === 'way').map(m => toLine(m.geometry)).filter(l => l.length > 1),
-        }))
-        .filter(r => r.lines.length);
-
-    const relationNames = new Set(relations.map(r => r.name));
-    const pathsByName = new Map();
-    elements
-        .filter(el => el.type === 'way')
-        .forEach(el => {
-            const name = routeName(el.tags);
-            if (!name || relationNames.has(name)) return;
-            const line = toLine(el.geometry);
-            if (line.length < 2) return;
-            if (!pathsByName.has(name)) {
-                pathsByName.set(name, { id: `way/${el.id}`, name, url: `https://www.openstreetmap.org/way/${el.id}`, lines: [] });
-            }
-            pathsByName.get(name).lines.push(line);
-        });
-
-    return [...relations, ...pathsByName.values()].slice(0, MAX_ROUTES);
-};
-
-// Cached and de-duplicated: calling this early (prefetch) and again on click
-// shares one request.
+// Shared per mountain, so the prefetch and the button click use one request.
 export const fetchHikingRoutes = (item) => {
-    const cached = getCachedRoutes(item.id);
-    if (cached) return Promise.resolve(cached);
-    if (inFlightRoutes.has(item.id)) return inFlightRoutes.get(item.id);
-
-    const request = queryHikingRoutes(item)
-        .then(routes => {
-            setCachedRoutes(item.id, routes);
-            return routes;
-        })
-        .finally(() => inFlightRoutes.delete(item.id));
-    inFlightRoutes.set(item.id, request);
-    return request;
+    if (!routeRequests.has(item.id)) {
+        const request = requestRoutes(item);
+        routeRequests.set(item.id, request);
+        request.catch(() => routeRequests.delete(item.id));
+    }
+    return routeRequests.get(item.id);
 };
 
 export const prefetchHikingRoutes = (item) => {
     fetchHikingRoutes(item).catch(() => {});
+};
+
+// Test helper.
+export const resetRouteCache = () => {
+    routeIndexRequest = null;
+    routeRequests.clear();
 };
