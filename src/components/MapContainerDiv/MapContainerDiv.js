@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Polyline, Tooltip, ScaleControl, LayersControl, LayerGroup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Polyline, Tooltip, ScaleControl, LayersControl } from 'react-leaflet';
 import axios from 'axios';
 import 'leaflet-contextmenu';
 import 'leaflet-contextmenu/dist/leaflet.contextmenu.css';
@@ -101,12 +101,12 @@ function MapMarker({ item, icon, onSelect, active }) {
 function MountainLayerControlGroup({ name, checked, data, onSelect, hiddenId }) {
     return (
         <LayersControl.Overlay checked={checked} name={name}>
+            {/* Markers must be direct children of the cluster group: markers added later
+                to a nested LayerGroup never reach the map (e.g. after closing the panel). */}
             <MarkerClusterGroup showCoverageOnHover={false} maxClusterRadius={50}>
-                <LayerGroup>
-                    {data.filter(item => item.id !== hiddenId).map(item =>
-                        <MapMarker key={item.id} icon={markerMointainIcon} item={item} onSelect={onSelect} />
-                    )}
-                </LayerGroup>
+                {data.filter(item => item.id !== hiddenId).map(item =>
+                    <MapMarker key={item.id} icon={markerMointainIcon} item={item} onSelect={onSelect} />
+                )}
             </MarkerClusterGroup>
         </LayersControl.Overlay>
     );
