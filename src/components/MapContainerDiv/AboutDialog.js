@@ -79,7 +79,9 @@ function AboutDialog({ open, onClose }) {
                 <Divider sx={{ my: 2 }} />
 
                 <Typography variant="caption" color="text.secondary" component="div" sx={{ lineHeight: 1.8 }}>
-                    山岳與路線資料來源：<Link href="https://hiking.biji.co/" target="_blank" rel="noreferrer">健行筆記</Link><br />
+                    山岳資料來源：<Link href="https://hiking.biji.co/" target="_blank" rel="noreferrer">健行筆記</Link><br />
+                    山岳照片：<Link href="https://commons.wikimedia.org/" target="_blank" rel="noreferrer">Wikimedia Commons</Link>（各照片作者與授權標示於照片上）<br />
+                    登山路線：© <Link href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</Link> 貢獻者（ODbL）<br />
                     原始碼：<Link href="https://github.com/KevinCayenne/taiwan_mountain_map" target="_blank" rel="noreferrer">GitHub</Link>
                 </Typography>
             </DialogContent>
