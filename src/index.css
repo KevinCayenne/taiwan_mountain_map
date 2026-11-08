@@ -1,152 +1,287 @@
-html, body{
-  margin: 0px;
-  padding: 0px;
+:root {
+  --brand: #2f6b4f;
+  --brand-dark: #1d4a35;
+  --ink: #1f2a24;
+  --glass-bg: rgba(255, 255, 255, 0.92);
+  --panel-shadow: 0 6px 24px rgba(16, 32, 24, 0.16);
+  --app-font: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
   height: 100%;
   width: 100%;
 }
 
 body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: var(--app-font);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior: none;
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
-}
-
-#root{
+#map-div {
+  position: relative;
   height: 100%;
   width: 100%;
 }
 
-.h-100{
-  height: 100%;
+.glass-panel {
+  background-color: var(--glass-bg) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
-.w-100{
-  width: 100%;
+/* ---------- Leaflet base ---------- */
+.leaflet-container {
+  font-family: var(--app-font);
+  background: #e8ece9;
 }
 
-.leaflet-control-layers-base > label > div{
+.leaflet-top, .leaflet-bottom {
+  z-index: 1000;
+}
+
+/* Layers control */
+.leaflet-control-layers {
+  border: none !important;
+  border-radius: 12px !important;
+  box-shadow: var(--panel-shadow) !important;
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.leaflet-touch .leaflet-control-layers-toggle {
+  width: 44px;
+  height: 44px;
+}
+
+.leaflet-control-layers-expanded {
+  padding: 10px 14px 10px 10px;
+  color: var(--ink);
+  min-width: 190px;
+}
+
+.leaflet-control-layers-base::before,
+.leaflet-control-layers-overlays::before {
+  display: block;
+  margin: 2px 0 6px 2px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #5f6b64;
+  letter-spacing: 0.05em;
+}
+
+.leaflet-control-layers-base::before { content: '底圖'; }
+.leaflet-control-layers-overlays::before { content: '山岳圖層'; }
+
+.leaflet-control-layers-separator {
+  margin: 8px -14px 8px -10px;
+  border-top-color: rgba(0, 0, 0, 0.08);
+}
+
+.leaflet-control-layers label {
+  margin: 0;
+  padding: 5px 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.leaflet-control-layers label:hover {
+  background-color: rgba(47, 107, 79, 0.08);
+}
+
+.leaflet-control-layers label > span,
+.leaflet-control-layers label > div {
   display: flex;
   align-items: center;
-  justify-content: start;
+  font-size: 14px;
 }
 
-.leaflet-control-layers-selector{
-  top: 0px;
-  margin-top: 0px;
-  margin-right: 5px;
+.leaflet-control-layers-selector {
+  top: 0;
+  margin: 0 8px 0 0;
+  accent-color: var(--brand);
+  width: 15px;
+  height: 15px;
 }
 
-.leaflet-top, .leaflet-bottom{
-  z-index: 1000;
+.layer-count {
+  margin-left: auto;
+  padding-left: 12px;
+  font-size: 12px;
+  color: #8a958f;
 }
 
-.leaflet-control-layers-overlays label div{
-  font-size: 15px;
+/* Attribution & scale */
+.leaflet-control-attribution {
+  font-size: 10px;
+  border-top-left-radius: 8px;
+  background: rgba(255, 255, 255, 0.8) !important;
+}
+
+.leaflet-control-scale-line {
+  border-color: rgba(31, 42, 36, 0.7);
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: 0 0 4px 4px;
+}
+
+/* Context menu */
+.leaflet-contextmenu {
+  z-index: 1200;
+  border-radius: 10px;
+  padding: 4px 0;
+  box-shadow: var(--panel-shadow);
+  border: none;
+}
+
+.leaflet-contextmenu a.leaflet-contextmenu-item {
   display: flex;
   align-items: center;
+  padding: 6px 12px;
+  font-size: 14px;
+  color: var(--ink);
 }
 
-#map-reset-btn{
-  position: absolute;
-  top: 13px;
-  right: 60px;
-  z-index: 1000;
-  background-color: transparent;
+.leaflet-contextmenu a.leaflet-contextmenu-item-over {
+  background-color: rgba(47, 107, 79, 0.1);
+  border: none;
 }
 
-.leaflet-popup-content{
-  margin: 33px 19px;
+.ctx-icon {
+  font-size: 18px !important;
+  margin-right: 8px;
+  color: var(--brand);
 }
 
-#mountain-info-block{
-  position: fixed;
-  bottom: 0px;
-  width: 100%;
-  height: auto;
-  min-height: auto;
-  max-height: 45%;
-  z-index: 1001;
-  overflow: auto;
+/* ---------- Markers ---------- */
+.mountain-marker {
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
+  transition: transform 0.15s;
 }
 
-.mountain-img{
-  object-fit: cover;
+.mountain-marker:hover {
+  transform-origin: bottom center;
 }
 
-#github-link{
-  position: absolute;
-  top: 19px;
-  right: 190px;
-  width: 20px;
-  height: 20px;
-  z-index: 1000;
+.leaflet-tooltip.mountain-label {
+  padding: 1px 7px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.92);
+  border: none;
+  border-radius: 999px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  white-space: nowrap;
 }
 
-#github-link > img {
-  width: 30px;
-  height: 30px;
-}
-
-#here-btn{
-  position: absolute;
-  top: 17px;
-  right: 105px;
-  width: auto !important;
-  min-width: 20px;
-  z-index: 1000;
-  padding: 6px;
-  border-radius: 50%;
-}
-
-#search-btn-toggle{
-  position: absolute;
-  top: 17px;
-  right: 140px;
-  width: auto !important;
-  min-width: 20px;
-  z-index: 1000;
-  padding: 6px;
-  border-radius: 50%;
-}
-
-.leaflet-popup-content-wrapper{
-  background-color: transparent;
-  box-shadow: none;
-}
-
-.leaflet-popup-tip-container{
+.leaflet-tooltip.mountain-label::before {
   display: none;
 }
 
-.mountain-img-div{
-  display: flex;
+.leaflet-tooltip.mountain-label--active {
+  padding: 3px 10px;
+  font-size: 14px;
+  color: #fff;
+  background: var(--brand);
+  box-shadow: 0 2px 8px rgba(29, 74, 53, 0.45);
 }
 
-.leaflet-contextmenu {
-  z-index: 1000;
+.mountain-marker-active {
+  background: transparent;
+  border: none;
 }
 
-@media screen and (max-width: 768px) {
-  .rwd-hide{
-      display: none !important;
-  }
+.mountain-marker-active img {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 40px;
+  height: 34px;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.45));
+}
 
-  .mountain-img-div{
-    display: none !important;
+.mountain-marker-active__pulse {
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  width: 44px;
+  height: 16px;
+  margin-left: -22px;
+  border-radius: 50%;
+  background: rgba(47, 107, 79, 0.45);
+  animation: marker-pulse 1.8s ease-out infinite;
+}
+
+.self-position-marker {
+  background: transparent;
+  border: none;
+}
+
+.self-position-marker__dot {
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  background: #1a73e8;
+  border: 3px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+.self-position-marker__halo {
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  background: rgba(26, 115, 232, 0.25);
+  animation: marker-pulse 2s ease-out infinite;
+}
+
+@keyframes marker-pulse {
+  0% { transform: scale(0.6); opacity: 1; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mountain-marker-active__pulse,
+  .self-position-marker__halo {
+    animation: none;
   }
 }
 
-@media screen and (max-width: 512px) {
-  #top-search-bar{
-    top: 65px !important;
-    max-width: 80%;
-  }
+/* Marker clusters */
+.marker-cluster-small,
+.marker-cluster-medium,
+.marker-cluster-large {
+  background-color: rgba(47, 107, 79, 0.25) !important;
+}
+
+.marker-cluster-small div,
+.marker-cluster-medium div,
+.marker-cluster-large div {
+  background-color: rgba(47, 107, 79, 0.85) !important;
+  color: #fff;
+  font-weight: 700;
+  font-family: var(--app-font);
+}
+
+/* ---------- Info panel ---------- */
+.hero-fallback {
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, 0) 55%, rgba(255, 255, 255, 0.08) 55%),
+    linear-gradient(200deg, rgba(255, 255, 255, 0) 60%, rgba(255, 255, 255, 0.12) 60%),
+    linear-gradient(135deg, #3f8a66 0%, #1d4a35 100%);
+}
+
+.hero-btn {
+  color: #fff !important;
+  background-color: rgba(0, 0, 0, 0.35) !important;
+  backdrop-filter: blur(4px);
+}
+
+.hero-btn:hover {
+  background-color: rgba(0, 0, 0, 0.55) !important;
 }

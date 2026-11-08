@@ -1,259 +1,379 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import axios from 'axios';
-import { Icon, Link } from '@mui/material';
+import L from 'leaflet';
+import {
+    Box,
+    Paper,
+    Icon,
+    IconButton,
+    Button,
+    Chip,
+    Collapse,
+    Divider,
+    Skeleton,
+    Stack,
+    Tooltip,
+    Typography,
+} from '@mui/material';
 import LoadingButton from '@mui/lab/LoadingButton';
-import Button from '@mui/material/Button';
+import { corsUrl, mainRequestUrl, parseHtml, getCategory, formatCounty, ROUTE_COLORS } from './utils';
 
-let gpxParser = require('gpxparser');
-const corsUrl = 'https://cors-proxy-kevincay.herokuapp.com/';
-const mainRequestUrl = 'https://hiking.biji.co/';
+const GpxParser = require('gpxparser');
 
-function MountainInfoBlock(props){
+export const PANEL_WIDTH = 380;
 
+const parseGpx = (gpxText) => {
+    const gpx = new GpxParser();
+    gpx.parse(gpxText);
+    return gpx.toGeoJSON().features;
+};
+
+// Fetch the GPX tracks of a single trail page on 健行筆記.
+const fetchTrail = async (link) => {
+    const url = mainRequestUrl + link.replace(/^\//, '');
+    const trailResp = await axios.get(corsUrl + url + '&type=route');
+    const doc = parseHtml(trailResp.data);
+    const gpxDataDiv = doc.querySelector('#interactive_map');
+    const gpxDataMobileDiv = doc.querySelector('.flex.space-x-5 > a');
+
+    if (gpxDataDiv) {
+        const gpxUrl = gpxDataDiv.getAttribute('data-value');
+        const gpxResp = await axios.get(corsUrl + gpxUrl);
+        return { trial: parseGpx(gpxResp.data), url };
+    }
+
+    if (gpxDataMobileDiv) {
+        const gpxId = (gpxDataMobileDiv.getAttribute('href') || '').split('id=')[1];
+        const deviceUrl = mainRequestUrl + 'index.php?q=trail&act=gpx_detail&id=' + gpxId;
+        const deviceResp = await axios.get(corsUrl + deviceUrl);
+        const deviceDoc = parseHtml(deviceResp.data);
+        const mapDiv = deviceDoc.querySelector('#interactive_map');
+        if (!mapDiv) return null;
+        const gpxResp = await axios.get(corsUrl + mapDiv.getAttribute('data-value'));
+        return { trial: parseGpx(gpxResp.data), url: deviceUrl };
+    }
+
+    return null;
+};
+
+function InfoRow({ icon, label, value }) {
+    return (
+        <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start', py: 0.75 }}>
+            <Box
+                sx={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 2,
+                    flexShrink: 0,
+                    display: 'grid',
+                    placeItems: 'center',
+                    bgcolor: 'rgba(47, 107, 79, 0.08)',
+                    color: 'primary.main',
+                }}
+            >
+                <Icon fontSize="small">{icon}</Icon>
+            </Box>
+            <Box sx={{ minWidth: 0 }}>
+                <Typography variant="caption" color="text.secondary" component="div" lineHeight={1.4}>{label}</Typography>
+                <Typography variant="body2" fontWeight={500} sx={{ wordBreak: 'break-word' }}>{value || '—'}</Typography>
+            </Box>
+        </Box>
+    );
+}
+
+function ActionButton({ icon, label, href, onClick, color = 'primary' }) {
+    return (
+        <Button
+            variant="outlined"
+            color={color}
+            onClick={onClick}
+            href={href}
+            target={href ? '_blank' : undefined}
+            rel={href ? 'noreferrer' : undefined}
+            sx={{
+                flex: 1,
+                minWidth: 0,
+                flexDirection: 'column',
+                gap: 0.25,
+                py: 1,
+                fontSize: 12,
+                borderColor: 'divider',
+                color: 'text.primary',
+                '& .MuiIcon-root': { color: `${color}.main` },
+            }}
+        >
+            <Icon fontSize="small">{icon}</Icon>
+            {label}
+        </Button>
+    );
+}
+
+function MountainInfoBlock({ data, photoLoading, isDesktop, onClose, onFocus, onFitBounds, onTrialDataChange, notify }) {
     const [trialDataLoading, setTrialDataLoading] = useState(false);
     const [trialData, setTrialData] = useState([]);
-    const [panelVisible, setPanelVisible] = useState(true);
+    const [expanded, setExpanded] = useState(true);
+    const [summaryOpen, setSummaryOpen] = useState(false);
+    const [photoError, setPhotoError] = useState(false);
 
-    const getMainTrialData = (item, map) => {
-        return new Promise(async (resolve, reject) => {
-            let currentItem = item;
-            let trialData = [];
-            // console.log(currentItem);
-            try{
-                if(currentItem && item.related_trials.length){
-                    const pst = [currentItem.lat, currentItem.lon];
-                    map.setView(pst, 14);
-            
-                    for(let i = 0; i < item.related_trials.length; i++){
-                        // get gpx data
-                        let tempTrial = {}; 
-                        // console.log(item.related_trials[i].link);
-                        const url = mainRequestUrl + item.related_trials[i].link;
-                        const trailResp = await axios.get(corsUrl + url + '&type=route');
-                        const trailData = trailResp.data;
-                        let htmlObject = document.createElement('div');
-                        htmlObject.innerHTML = trailData;
-                        let gpxDataDiv = htmlObject.querySelector("#interactive_map");
-                        let gpxDataMobileDiv = htmlObject.querySelector(".flex.space-x-5 > a");
+    const category = getCategory(data);
+    const relatedTrials = data.related_trials || [];
 
-                        if(gpxDataDiv){
-                            let gpxData = gpxDataDiv.attributes['data-value'].value;
-
-                            // Parse gpx
-                            const trailGpxResp = await axios.get(corsUrl + gpxData);
-                            var gpx = new gpxParser(); //Create gpxParser Object
-                            gpx.parse(trailGpxResp.data); 
-                            let geoJSON = gpx.toGeoJSON(); //parse gpx file from string data
-                            tempTrial.trial = geoJSON.features;
-                            tempTrial.visible = true;
-                            tempTrial.url = url;
-                            trialData.push(tempTrial);
-                        }else if(gpxDataMobileDiv){
-                            const gpxId = gpxDataMobileDiv['href'].split('id=')[1];
-                            const deviceUrl = mainRequestUrl + '/index.php?q=trail&act=gpx_detail&id=' + gpxId;
-                            const trailGpxResp = await axios.get(corsUrl + deviceUrl);
-
-                            const trailGpxData = trailGpxResp.data;
-                            let htmlObject = document.createElement('div');
-                            htmlObject.innerHTML = trailGpxData;
-                            gpxDataDiv = htmlObject.querySelector("#interactive_map");
-                            let gpxData = gpxDataDiv.attributes['data-value'].value;
-
-                            // Parse gpx
-                            const trailGpxMobileResp = await axios.get(corsUrl + gpxData);
-                            gpx = new gpxParser(); //Create gpxParser Object
-                            gpx.parse(trailGpxMobileResp.data); 
-                            let geoJSON = gpx.toGeoJSON(); //parse gpx file from string data
-                            tempTrial.trial = geoJSON.features;
-                            tempTrial.visible = true;
-                            tempTrial.url = deviceUrl;
-                            trialData.push(tempTrial);
-                        }
-                    }  
-                }
-                resolve(trialData);
-            }
-            catch(err){
-                console.log(err);
-                reject(trialData);
-                setTrialDataLoading(false);
-            }
-        });
+    const updateTrialData = (next) => {
+        setTrialData(next);
+        onTrialDataChange(next);
     };
 
     const loadTrial = async () => {
         setTrialDataLoading(true);
-        const trialDataResp = await getMainTrialData(props.data, props.map);
-        // console.log(trialDataResp);
-        setTrialData(trialDataResp);
-        props.setCurrentTrialDataHandler(trialDataResp);
+        const results = await Promise.all(
+            relatedTrials.map(t => fetchTrail(t.link)
+                .then(r => r && { ...r, name: t.name || (r.trial[0] && r.trial[0].properties && r.trial[0].properties.name) })
+                .catch(err => { console.log(err); return null; }))
+        );
+        const loaded = results
+            .filter(r => r && r.trial && r.trial.length)
+            .map((r, index) => ({
+                ...r,
+                visible: true,
+                color: ROUTE_COLORS[index % ROUTE_COLORS.length],
+                name: r.name || `路線 ${index + 1}`,
+            }));
+
+        updateTrialData(loaded);
         setTrialDataLoading(false);
-    }
 
-    const togglePathVisible = (item, index) => {
-        let newDataArr = [...trialData]; // copying the old datas array
-        newDataArr[index].visible = item.visible ? false : true; 
-        setTrialData(newDataArr);
-        props.setCurrentTrialDataHandler(newDataArr);
-    };
-
-    const clearSelected = () => {
-        props.setCurrentItemHandler(null);
-    };
-
-    const toggleShowPanel = () => {
-        panelVisible ? setPanelVisible(false) : setPanelVisible(true);
-    };
-
-    const moveToCurrentItem = () => {
-        if(props.data){
-            props.map.setView([props.data.lat, props.data.lon], 14);
+        if (loaded.length) {
+            const bounds = L.latLngBounds([]);
+            loaded.forEach(r => r.trial.forEach(f => {
+                if (f.geometry.type === 'LineString') {
+                    f.geometry.coordinates.forEach(([lon, lat]) => bounds.extend([lat, lon]));
+                }
+            }));
+            onFitBounds(bounds);
+        } else {
+            notify('目前無法載入路線資料，請稍後再試', 'warning');
         }
     };
 
-    useEffect(() => {
-        setTrialData([]);
-    }, [props.data.id]);
+    const togglePathVisible = (index) => {
+        updateTrialData(trialData.map((item, i) => i === index ? { ...item, visible: !item.visible } : item));
+    };
 
-    useEffect(() => {
-        return () => {
-            setTrialDataLoading(false);
-            setTrialData(null);
-        }
-    }, []);
+    const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${data.lat},${data.lon}`;
+    const weatherUrl = `https://www.google.com/search?q=${encodeURIComponent(data.title + ' 天氣')}`;
+    const bijiUrl = `https://hiking.biji.co/index.php?q=mountain&act=detail&id=${data.id}`;
 
-    return(
-        <div id="mountain-info-block" className='row mx-0'>
-            <div className="col-md-3 mountain-img-div py-2 rwd-hide align-items-center justify-content-center">
-                {
-                    props.data.mainPhoto && !props.markerImgLoading ?
-                        <img className="mountain-img w-100 h-100 rounded shodow" src={ props.data.mainPhoto } alt="" />
-                    : 
-                        <div className="spinner-border text-primary" role="status">
-                            <span className="visually-hidden">Loading...</span>
-                        </div>
-                }
-            </div>
-            <div className="col-md-6 px-2 pt-0 pb-2 d-flex flex-column justify-content-end" style={{ position: 'relative' }}>
-                <div className="text-end" style={{ position: 'sticky', top: '0px' }}>
-                    <Button
-                        className="mb-2"
-                        size="small"
-                        variant="contained"
-                        onClick={clearSelected}
-                    >
-                        清除
-                    </Button>
-                    <Button 
-                        className="mb-2 ms-2" 
-                        size="small" 
-                        variant="contained" 
-                        onClick={toggleShowPanel}
-                    >
-                        { panelVisible ? <Icon>keyboard_arrow_down</Icon> : <Icon>expand_less</Icon> }
-                    </Button>
-                </div>
-               
-                {
-                    panelVisible ? 
-                        <div className="px-2 py-2 rounded shadow bg-light w-100">
-                            <div className="fw-bold text-start d-flex align-items-center" style={{ fontSize: '25px' }}>
-                                <span className="pe-2">{ props.data.title }</span>
-                                <Button
-                                    size="small" 
-                                    className="px-1"
-                                    onClick={moveToCurrentItem}
-                                    style={{ minWidth: '0px' }}
+    const heroHeight = isDesktop ? 190 : 130;
+
+    return (
+        <Paper
+            id="mountain-info-block"
+            elevation={8}
+            sx={isDesktop ? {
+                position: 'absolute',
+                top: 72,
+                left: 12,
+                width: PANEL_WIDTH,
+                maxHeight: 'calc(100% - 96px)',
+                zIndex: 1050,
+                borderRadius: 4,
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+            } : {
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                bottom: 0,
+                maxHeight: '58%',
+                zIndex: 1050,
+                borderRadius: '20px 20px 0 0',
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+            }}
+        >
+            {!isDesktop ?
+                <Box
+                    role="button"
+                    aria-label={expanded ? '收合' : '展開'}
+                    onClick={() => setExpanded(!expanded)}
+                    sx={{ py: 1, display: 'flex', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+                >
+                    <Box sx={{ width: 40, height: 5, borderRadius: 999, bgcolor: 'grey.300' }} />
+                </Box>
+            : null}
+
+            {/* Header / hero */}
+            <Box sx={{ position: 'relative', flexShrink: 0, mx: isDesktop ? 0 : 1.5, borderRadius: isDesktop ? 0 : 3, overflow: 'hidden' }}>
+                <Collapse in={expanded} collapsedSize={0}>
+                    <Box sx={{ height: heroHeight, position: 'relative', bgcolor: 'primary.dark' }}>
+                        {photoLoading ?
+                            <Skeleton variant="rectangular" animation="wave" sx={{ width: '100%', height: '100%', bgcolor: 'rgba(255,255,255,0.12)' }} />
+                        : data.mainPhoto && !photoError ?
+                            <Box component="img" src={data.mainPhoto} alt="" onError={() => setPhotoError(true)} sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                        :
+                            <Box className="hero-fallback" sx={{ width: '100%', height: '100%' }} />
+                        }
+                        <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0) 35%, rgba(0,0,0,0.65) 100%)' }} />
+                    </Box>
+                </Collapse>
+
+                <Box
+                    sx={expanded ? {
+                        position: 'absolute', left: 0, right: 0, bottom: 0, px: 2, pb: 1.5, color: '#fff',
+                    } : {
+                        px: isDesktop ? 2 : 0.5, py: 1, color: 'text.primary',
+                    }}
+                >
+                    <Stack direction="row" alignItems="flex-end" spacing={1}>
+                        <Typography variant="h5" fontWeight={700} lineHeight={1.2} sx={expanded ? { textShadow: '0 1px 4px rgba(0,0,0,0.5)' } : {}}>
+                            {data.title}
+                        </Typography>
+                        <Typography variant="subtitle1" fontWeight={600} sx={{ opacity: 0.9, whiteSpace: 'nowrap' }}>
+                            {data.height}
+                        </Typography>
+                    </Stack>
+                    {data.nick_name && expanded ?
+                        <Typography variant="caption" sx={{ opacity: 0.85 }}>別名：{data.nick_name}</Typography>
+                    : null}
+                </Box>
+
+                <Stack direction="row" spacing={0.5} sx={{ position: 'absolute', top: expanded ? 8 : 4, right: 8 }}>
+                    {isDesktop ?
+                        <Tooltip title={expanded ? '收合' : '展開'}>
+                            <IconButton size="small" onClick={() => setExpanded(!expanded)} className={expanded ? 'hero-btn' : ''}>
+                                <Icon fontSize="small">{expanded ? 'expand_less' : 'expand_more'}</Icon>
+                            </IconButton>
+                        </Tooltip>
+                    : null}
+                    <Tooltip title="關閉">
+                        <IconButton size="small" onClick={onClose} className={expanded ? 'hero-btn' : ''} aria-label="關閉">
+                            <Icon fontSize="small">close</Icon>
+                        </IconButton>
+                    </Tooltip>
+                </Stack>
+            </Box>
+
+            <Collapse in={expanded} sx={{ minHeight: 0, overflow: 'auto', '& .MuiCollapse-wrapper': { minHeight: 0 } }}>
+                <Box sx={{ px: 2, pt: 1.5, pb: 2 }}>
+                    {/* Tags */}
+                    <Stack direction="row" spacing={0.75} sx={{ flexWrap: 'wrap', rowGap: 0.75, mb: 1.5 }}>
+                        {category ? <Chip size="small" color="primary" icon={<Icon fontSize="small">landscape</Icon>} label={category} /> : null}
+                        {data.title_tag ? <Chip size="small" variant="outlined" label={data.title_tag} /> : null}
+                        {data.need_mountain_apply === '要' ? <Chip size="small" color="secondary" variant="outlined" label="需入山申請" /> : null}
+                        {data.need_park_apply === '要' ? <Chip size="small" color="secondary" variant="outlined" label="需入園申請" /> : null}
+                    </Stack>
+
+                    {/* Actions */}
+                    <Stack direction="row" spacing={1} sx={{ mb: 1.5 }}>
+                        <ActionButton icon="center_focus_strong" label="定位" onClick={onFocus} />
+                        <ActionButton icon="directions" label="導航" href={directionsUrl} color="info" />
+                        <ActionButton icon="wb_sunny" label="天氣" href={weatherUrl} color="secondary" />
+                        <ActionButton icon="launch" label="健行筆記" href={bijiUrl} color="success" />
+                    </Stack>
+
+                    <Divider />
+
+                    {/* Details */}
+                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 1.5, pt: 0.5 }}>
+                        <InfoRow icon="terrain" label="海拔" value={data.height} />
+                        <InfoRow icon="account_tree" label="山系" value={data.mountain_sys} />
+                        <InfoRow icon="park" label="國家公園" value={data.park} />
+                        <InfoRow icon="adjust" label="基點" value={data.base_point} />
+                    </Box>
+                    <InfoRow icon="place" label="行政區" value={formatCounty(data.county)} />
+
+                    {data.summary ?
+                        <Box sx={{ mt: 1 }}>
+                            <Typography
+                                variant="body2"
+                                color="text.secondary"
+                                sx={summaryOpen ? { lineHeight: 1.7 } : {
+                                    lineHeight: 1.7,
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 3,
+                                    WebkitBoxOrient: 'vertical',
+                                    overflow: 'hidden',
+                                }}
+                            >
+                                {data.summary}
+                            </Typography>
+                            <Button size="small" onClick={() => setSummaryOpen(!summaryOpen)} sx={{ px: 0.5, mt: 0.25 }}>
+                                {summaryOpen ? '收合簡介' : '閱讀更多'}
+                            </Button>
+                        </Box>
+                    : null}
+
+                    <Divider sx={{ my: 1.5 }} />
+
+                    {/* Routes */}
+                    <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                            <Icon fontSize="small" color="primary">route</Icon>
+                            <Typography variant="subtitle2" fontWeight={700}>登山路線</Typography>
+                            <Chip size="small" label={trialData.length || relatedTrials.length} />
+                        </Stack>
+                        {trialData.length ?
+                            <Button size="small" startIcon={<Icon>refresh</Icon>} onClick={loadTrial} disabled={trialDataLoading}>
+                                重新載入
+                            </Button>
+                        : null}
+                    </Stack>
+
+                    {relatedTrials.length === 0 ?
+                        <Typography variant="body2" color="text.secondary">此山岳目前沒有相關路線資料</Typography>
+                    : !trialData.length ?
+                        <LoadingButton
+                            fullWidth
+                            onClick={loadTrial}
+                            loading={trialDataLoading}
+                            loadingPosition="start"
+                            startIcon={<Icon>directions_walk</Icon>}
+                            variant="contained"
+                        >
+                            {trialDataLoading ? '路線載入中…' : `在地圖上顯示路線 (${relatedTrials.length})`}
+                        </LoadingButton>
+                    :
+                        <Stack spacing={0.75}>
+                            {trialData.map((item, index) =>
+                                <Box
+                                    key={index}
+                                    sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 1,
+                                        pl: 1.25,
+                                        pr: 0.5,
+                                        py: 0.5,
+                                        borderRadius: 2,
+                                        border: 1,
+                                        borderColor: 'divider',
+                                        opacity: item.visible ? 1 : 0.55,
+                                        transition: 'opacity .2s',
+                                    }}
                                 >
-                                    <Icon className="align-middle">navigation</Icon>
-                                </Button>
-                                <Link 
-                                    href={ 'https://www.google.com/search?q=' + props.data.title + '+天氣' } 
-                                    target="_blank" 
-                                    rel="noreferrer" 
-                                    color="orange" 
-                                    underline="none" 
-                                    className="px-1"
-                                    style={{ fontSize: "15px" }}
-                                >
-                                    <Icon className="align-middle">wb_sunny</Icon>
-                                </Link>
-                                <Link 
-                                    href={ 'https://hiking.biji.co/index.php?q=mountain&act=detail&id=' + props.data.id } 
-                                    target="_blank" 
-                                    rel="noreferrer" 
-                                    color="green" 
-                                    underline="none" 
-                                    className="px-1"
-                                    style={{ fontSize: "15px" }}
-                                >
-                                    <span className="align-middle">健行筆記 </span>
-                                    <Icon className="align-middle">launch</Icon>
-                                </Link>
-                            </div>
-                            <div className="text-start">高度: {props.data.height}</div>
-                            <div className="text-start">行政區: {props.data.county}</div>
-                            <div className="text-start">山系: {props.data.mountain_sys}</div>
-                            <div className="text-start">備註: {props.data.title_tag}</div>
-                            <div className="text-start">所屬國家公園: {props.data.park}</div>
-                            <div className="text-start">基點: {props.data.base_point}</div>
-                            {/* <div>簡介: {props.data.summary}</div> */}
-                        </div>
-                    : null
-                }
-            </div>
-            {
-                panelVisible ? 
-                    <div className="col-md-3 h-100 px-2 py-2" style={{ maxHeight: '350px', overflow: 'auto' }}>
-                        <div className="px-2 py-2 bg-light rounded shadow h-100 d-flex flex-column">
-                            <div className="border-bottom fw-bold" style={{ flex: '0 0 auto', height: 'auto' }}>
-                                <span className="pe-2">路線資料</span>
-                                { trialData.length ?  '(' + trialData.length + ')' : null }
-                            </div>
-                            <div style={{ flex: '1 1 100%', height: '100%' }}>
-                                {
-                                    trialData.length === 0 ?
-                                        <LoadingButton
-                                            className="my-1"
-                                            onClick={loadTrial}
-                                            loading={trialDataLoading}
-                                            loadingPosition="end"
-                                            endIcon={<Icon>directions_walk</Icon>}
-                                            variant="contained"
-                                        >
-                                            <span className="align-middle">載入路線</span>
-                                        </LoadingButton>
-                                    : null
-                                }
-                                {
-                                    trialData.map((item, index) => 
-                                        <div key={index} className="row mx-0 py-1 border-bottom">
-                                            <div className="col-8 px-0">
-                                                <span className="align-middle">
-                                                    { index + 1 + '. ' }
-                                                    { item.trial[0].properties.name ? item.trial[0].properties.name : '路線' }
-                                                </span>
-                                            </div>
-                                            <div className="col-2 d-flex align-items-center justify-content-center">
-                                                <Button size="small" className="w-100" onClick={e => togglePathVisible(item, index)}>
-                                                    { item.visible ? <Icon className="align-middle">visibility</Icon> : <Icon className="align-middle text-secondary">visibility_off</Icon> }
-                                                </Button>
-                                            </div>
-                                            <div className="col-2 d-flex align-items-center justify-content-center">
-                                                <Link href={item.url} target="_blank" rel="noreferrer" color="green" underline="none" style={{ fontSize: "15px" }}>
-                                                    <Icon className="align-middle">launch</Icon>
-                                                </Link>
-                                            </div>
-                                        </div>
-                                    )
-                                }
-                            </div>
-                        </div>
-                    </div>
-                : null
-            }
-        </div>
+                                    <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: item.color, flexShrink: 0, boxShadow: '0 0 0 2px #fff, 0 0 0 3px rgba(0,0,0,0.12)' }} />
+                                    <Typography variant="body2" sx={{ flex: 1, minWidth: 0 }} noWrap title={item.name}>
+                                        {item.name}
+                                    </Typography>
+                                    <Tooltip title={item.visible ? '隱藏路線' : '顯示路線'}>
+                                        <IconButton size="small" onClick={() => togglePathVisible(index)}>
+                                            <Icon fontSize="small">{item.visible ? 'visibility' : 'visibility_off'}</Icon>
+                                        </IconButton>
+                                    </Tooltip>
+                                    <Tooltip title="在健行筆記開啟">
+                                        <IconButton size="small" href={item.url} target="_blank" rel="noreferrer">
+                                            <Icon fontSize="small">open_in_new</Icon>
+                                        </IconButton>
+                                    </Tooltip>
+                                </Box>
+                            )}
+                        </Stack>
+                    }
+                </Box>
+            </Collapse>
+        </Paper>
     );
 }
 

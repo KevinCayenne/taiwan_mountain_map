@@ -1,13 +1,17 @@
 import './App.css';
-import 'bootstrap/dist/css/bootstrap.min.css';
-import 'bootstrap/dist/js/bootstrap.min.js';
+import { ThemeProvider } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
+import theme from './theme';
 import MapContainerDiv from './components/MapContainerDiv/MapContainerDiv';
 
 function App() {
   return (
-    <div className="App h-100 w-100">
-      <MapContainerDiv />
-    </div>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <div className="App">
+        <MapContainerDiv />
+      </div>
+    </ThemeProvider>
   );
 }
 
