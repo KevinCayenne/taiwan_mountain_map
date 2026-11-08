@@ -1,5 +1,7 @@
 import { matchesMountain, fetchHikingRoutes, fetchMountainPhoto } from './openData';
 
+beforeEach(() => window.localStorage.clear());
+
 const yushan = { id: '1', title: '玉山主峰', nick_name: '新高山∕摩里遜山', lat: '23.47', lon: '120.957' };
 
 describe('matchesMountain', () => {
@@ -61,7 +63,38 @@ describe('fetchHikingRoutes', () => {
             },
         ]);
         const body = global.fetch.mock.calls[0][1].body.get('data');
-        expect(body).toContain('around:3000,23.47,120.957');
+        expect(body).toContain('relation[route~"^(hiking|foot)$"](23.44300,120.93000,23.49700,120.98400)');
+        expect(body).not.toContain('around:');
+    });
+
+    test('caches routes per mountain and shares in-flight requests', async () => {
+        global.fetch = jest.fn(() => jsonResponse({ elements: [
+            { type: 'way', id: 1, tags: { name: '步道' }, geometry: [{ lat: 1, lon: 1 }, { lat: 2, lon: 2 }] },
+        ] }));
+
+        const [a, b] = await Promise.all([fetchHikingRoutes(yushan), fetchHikingRoutes(yushan)]);
+        const c = await fetchHikingRoutes(yushan);
+
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+        expect(a).toEqual(b);
+        expect(c).toEqual(a);
+    });
+
+    test('asks the backup server when the first is slow, and uses whichever answers first', async () => {
+        jest.useFakeTimers();
+        let firstSignal;
+        global.fetch = jest.fn()
+            .mockImplementationOnce((url, opts) => { firstSignal = opts.signal; return new Promise(() => {}); })
+            .mockImplementationOnce(() => jsonResponse({ elements: [] }));
+
+        const result = fetchHikingRoutes({ ...yushan, id: 'slow' });
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+        jest.advanceTimersByTime(4000);
+        expect(global.fetch).toHaveBeenCalledTimes(2);
+
+        await expect(result).resolves.toEqual([]);
+        expect(firstSignal.aborted).toBe(true);
+        jest.useRealTimers();
     });
 
     test('falls back to the second Overpass server', async () => {
