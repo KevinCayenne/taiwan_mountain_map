@@ -27,6 +27,7 @@ import MarkerClusterGroup from 'react-leaflet-markercluster';
 import markerMointainIcon, { activeMountainIcon, selfPositionIcon } from './MountainIcon.js';
 import GitHubIcon from '../../assets/png/GitHub-Mark/PNG/GitHub-Mark-64px.png';
 import MountainInfoBlock, { PANEL_WIDTH } from './MountainInfoBlock';
+import AboutDialog, { COMPANY } from './AboutDialog';
 import { corsUrl, mainRequestUrl, parseHtml, getCategory } from './utils';
 
 require('react-leaflet-markercluster/dist/styles.min.css');
@@ -203,7 +204,7 @@ function ControlButton({ title, onClick, children, href }) {
     );
 }
 
-function MapControls({ map, onHome, onLocate, locating }) {
+function MapControls({ map, onHome, onLocate, locating, onAbout }) {
     return (
         <Box
             sx={{
@@ -237,6 +238,10 @@ function MapControls({ map, onHome, onLocate, locating }) {
                 </ControlButton>
             </Paper>
             <Paper elevation={4} className="glass-panel" sx={{ display: 'flex', flexDirection: 'column', p: 0.25 }}>
+                <ControlButton title="關於本站" onClick={onAbout}>
+                    <Icon sx={{ color: 'primary.main' }}>info_outline</Icon>
+                </ControlButton>
+                <Divider flexItem sx={{ mx: 0.75 }} />
                 <ControlButton title="GitHub 原始碼" href="https://github.com/KevinCayenne/taiwan_mountain_map">
                     <Box component="img" src={GitHubIcon} alt="GitHub" sx={{ width: 22, height: 22 }} />
                 </ControlButton>
@@ -257,6 +262,7 @@ function MapContainerDiv() {
     const [backDropOpen, setBackDropOpen] = useState(false);
     const [locating, setLocating] = useState(false);
     const [toast, setToast] = useState(null);
+    const [aboutOpen, setAboutOpen] = useState(false);
     const latestRequestId = useRef(null);
 
     const notify = useCallback((message, severity = 'info') => {
@@ -410,7 +416,39 @@ function MapContainerDiv() {
                 />
             : null}
 
-            <MapControls map={map} onHome={resetView} onLocate={moveToHere} locating={locating} />
+            <MapControls map={map} onHome={resetView} onLocate={moveToHere} locating={locating} onAbout={() => setAboutOpen(true)} />
+
+            <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
+
+            {!currentItem || isDesktop ?
+                <Paper
+                    elevation={3}
+                    className="glass-panel"
+                    component="a"
+                    href={COMPANY.url}
+                    target="_blank"
+                    rel="noopener"
+                    sx={{
+                        position: 'absolute',
+                        left: 10,
+                        bottom: 30,
+                        zIndex: 1000,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 0.75,
+                        px: 1.25,
+                        py: 0.5,
+                        borderRadius: 999,
+                        fontSize: 12,
+                        color: 'text.secondary',
+                        textDecoration: 'none',
+                        '&:hover': { color: 'primary.main' },
+                    }}
+                >
+                    <Icon sx={{ fontSize: 16, color: 'primary.main' }}>precision_manufacturing</Icon>
+                    <span>網站提供：<strong>{COMPANY.shortName}</strong> · {COMPANY.displayUrl}</span>
+                </Paper>
+            : null}
 
             <MapContainer
                 center={centerLatLng}
