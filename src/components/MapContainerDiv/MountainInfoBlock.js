@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import L from 'leaflet';
 import {
     Box,
@@ -17,7 +17,7 @@ import {
 } from '@mui/material';
 import LoadingButton from '@mui/lab/LoadingButton';
 import { getCategory, formatCounty, bijiMountainUrl, bijiTrailUrl, ROUTE_COLORS } from './utils';
-import { fetchHikingRoutes } from './openData';
+import { fetchHikingRoutes, prefetchHikingRoutes } from './openData';
 
 export const PANEL_WIDTH = 380;
 
@@ -85,6 +85,12 @@ function MountainInfoBlock({ data, photoLoading, isDesktop, onClose, onFocus, on
     const category = getCategory(data);
     const relatedTrials = data.related_trials || [];
     const photo = data.photo;
+
+    // Start the route query as soon as the panel opens, so the button is usually instant.
+    useEffect(() => {
+        prefetchHikingRoutes(data);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [data.id]);
 
     const updateTrialData = (next) => {
         setTrialData(next);
