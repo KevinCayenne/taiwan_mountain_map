@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Polyline, Tooltip, ScaleControl, LayersControl } from 'react-leaflet';
-import axios from 'axios';
 import 'leaflet-contextmenu';
 import 'leaflet-contextmenu/dist/leaflet.contextmenu.css';
 import {
@@ -28,7 +27,8 @@ import markerMointainIcon, { activeMountainIcon, selfPositionIcon } from './Moun
 import GitHubIcon from '../../assets/png/GitHub-Mark/PNG/GitHub-Mark-64px.png';
 import MountainInfoBlock, { PANEL_WIDTH } from './MountainInfoBlock';
 import AboutDialog, { COMPANY } from './AboutDialog';
-import { corsUrl, mainRequestUrl, parseHtml, getCategory } from './utils';
+import { getCategory } from './utils';
+import { fetchMountainPhoto } from './openData';
 
 require('react-leaflet-markercluster/dist/styles.min.css');
 
@@ -329,13 +329,6 @@ function MapContainerDiv() {
         if (map) map.flyTo(centerLatLng, defaultZoom, { duration: 0.8 });
     };
 
-    const getMountainMainPhoto = async (item) => {
-        const resp = await axios.get(corsUrl + mainRequestUrl + 'index.php?q=mountain&act=detail&id=' + item.id);
-        const doc = parseHtml(resp.data);
-        const imgData = doc.querySelector("meta[itemprop='image']");
-        return imgData ? imgData.getAttribute('content') : null;
-    };
-
     const selectMountain = useCallback(async (item) => {
         if (!item) return;
         if (currentItem && currentItem.id === item.id) {
@@ -348,9 +341,9 @@ function MapContainerDiv() {
         setMarkerImgLoading(true);
         focusOn([item.lat, item.lon]);
         try {
-            const photo = await getMountainMainPhoto(item);
+            const photo = await fetchMountainPhoto(item);
             if (latestRequestId.current === item.id) {
-                setCurrentItem({ ...item, mainPhoto: photo });
+                setCurrentItem({ ...item, photo });
             }
         } catch (err) {
             console.log(err);
@@ -430,7 +423,7 @@ function MapContainerDiv() {
                     rel="noopener"
                     sx={{
                         position: 'absolute',
-                        left: 10,
+                        left: currentItem && isDesktop ? PANEL_WIDTH + 24 : 10,
                         bottom: 30,
                         zIndex: 1000,
                         display: 'flex',
@@ -481,23 +474,19 @@ function MapContainerDiv() {
                 </LayersControl>
 
                 {currentTrialData ?
-                    currentTrialData.map((feature, index) =>
-                        feature.visible && feature.trial.length ?
-                            feature.trial.map((trial, trialIndex) =>
-                                trial.geometry.type === 'LineString' ?
-                                    <React.Fragment key={index + '_' + trialIndex}>
-                                        <Polyline
-                                            pathOptions={{ color: '#ffffff', weight: 8, opacity: 0.85 }}
-                                            positions={trial.geometry.coordinates.map(point => [point[1], point[0]])}
-                                        />
-                                        <Polyline
-                                            pathOptions={{ color: feature.color, weight: 4, opacity: 0.95 }}
-                                            positions={trial.geometry.coordinates.map(point => [point[1], point[0]])}
-                                        />
-                                    </React.Fragment>
-                                : null
-                            )
-                        : null
+                    currentTrialData.filter(route => route.visible).map(route =>
+                        <React.Fragment key={route.id}>
+                            <Polyline
+                                pathOptions={{ color: '#ffffff', weight: 8, opacity: 0.85 }}
+                                positions={route.lines}
+                            />
+                            <Polyline
+                                pathOptions={{ color: route.color, weight: 4, opacity: 0.95 }}
+                                positions={route.lines}
+                            >
+                                <Tooltip sticky>{route.name}</Tooltip>
+                            </Polyline>
+                        </React.Fragment>
                     )
                 : null}
 

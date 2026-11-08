@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 import L from 'leaflet';
 import {
     Box,
@@ -10,51 +9,17 @@ import {
     Chip,
     Collapse,
     Divider,
+    Link,
     Skeleton,
     Stack,
     Tooltip,
     Typography,
 } from '@mui/material';
 import LoadingButton from '@mui/lab/LoadingButton';
-import { corsUrl, mainRequestUrl, parseHtml, getCategory, formatCounty, ROUTE_COLORS } from './utils';
-
-const GpxParser = require('gpxparser');
+import { getCategory, formatCounty, bijiMountainUrl, bijiTrailUrl, ROUTE_COLORS } from './utils';
+import { fetchHikingRoutes } from './openData';
 
 export const PANEL_WIDTH = 380;
-
-const parseGpx = (gpxText) => {
-    const gpx = new GpxParser();
-    gpx.parse(gpxText);
-    return gpx.toGeoJSON().features;
-};
-
-// Fetch the GPX tracks of a single trail page on 健行筆記.
-const fetchTrail = async (link) => {
-    const url = mainRequestUrl + link.replace(/^\//, '');
-    const trailResp = await axios.get(corsUrl + url + '&type=route');
-    const doc = parseHtml(trailResp.data);
-    const gpxDataDiv = doc.querySelector('#interactive_map');
-    const gpxDataMobileDiv = doc.querySelector('.flex.space-x-5 > a');
-
-    if (gpxDataDiv) {
-        const gpxUrl = gpxDataDiv.getAttribute('data-value');
-        const gpxResp = await axios.get(corsUrl + gpxUrl);
-        return { trial: parseGpx(gpxResp.data), url };
-    }
-
-    if (gpxDataMobileDiv) {
-        const gpxId = (gpxDataMobileDiv.getAttribute('href') || '').split('id=')[1];
-        const deviceUrl = mainRequestUrl + 'index.php?q=trail&act=gpx_detail&id=' + gpxId;
-        const deviceResp = await axios.get(corsUrl + deviceUrl);
-        const deviceDoc = parseHtml(deviceResp.data);
-        const mapDiv = deviceDoc.querySelector('#interactive_map');
-        if (!mapDiv) return null;
-        const gpxResp = await axios.get(corsUrl + mapDiv.getAttribute('data-value'));
-        return { trial: parseGpx(gpxResp.data), url: deviceUrl };
-    }
-
-    return null;
-};
 
 function InfoRow({ icon, label, value }) {
     return (
@@ -109,49 +74,44 @@ function ActionButton({ icon, label, href, onClick, color = 'primary' }) {
 }
 
 function MountainInfoBlock({ data, photoLoading, isDesktop, onClose, onFocus, onFitBounds, onTrialDataChange, notify }) {
-    const [trialDataLoading, setTrialDataLoading] = useState(false);
+    // idle | loading | loaded | error
+    const [routeStatus, setRouteStatus] = useState('idle');
     const [trialData, setTrialData] = useState([]);
     const [expanded, setExpanded] = useState(true);
     const [summaryOpen, setSummaryOpen] = useState(false);
+    const [bijiOpen, setBijiOpen] = useState(false);
     const [photoError, setPhotoError] = useState(false);
 
     const category = getCategory(data);
     const relatedTrials = data.related_trials || [];
+    const photo = data.photo;
 
     const updateTrialData = (next) => {
         setTrialData(next);
         onTrialDataChange(next);
     };
 
-    const loadTrial = async () => {
-        setTrialDataLoading(true);
-        const results = await Promise.all(
-            relatedTrials.map(t => fetchTrail(t.link)
-                .then(r => r && { ...r, name: t.name || (r.trial[0] && r.trial[0].properties && r.trial[0].properties.name) })
-                .catch(err => { console.log(err); return null; }))
-        );
-        const loaded = results
-            .filter(r => r && r.trial && r.trial.length)
-            .map((r, index) => ({
-                ...r,
+    const loadRoutes = async () => {
+        setRouteStatus('loading');
+        try {
+            const routes = await fetchHikingRoutes(data);
+            const loaded = routes.map((route, index) => ({
+                ...route,
                 visible: true,
                 color: ROUTE_COLORS[index % ROUTE_COLORS.length],
-                name: r.name || `路線 ${index + 1}`,
             }));
+            updateTrialData(loaded);
+            setRouteStatus('loaded');
 
-        updateTrialData(loaded);
-        setTrialDataLoading(false);
-
-        if (loaded.length) {
-            const bounds = L.latLngBounds([]);
-            loaded.forEach(r => r.trial.forEach(f => {
-                if (f.geometry.type === 'LineString') {
-                    f.geometry.coordinates.forEach(([lon, lat]) => bounds.extend([lat, lon]));
-                }
-            }));
-            onFitBounds(bounds);
-        } else {
-            notify('目前無法載入路線資料，請稍後再試', 'warning');
+            if (loaded.length) {
+                const bounds = L.latLngBounds([[data.lat, data.lon]]);
+                loaded.forEach(route => route.lines.forEach(line => line.forEach(point => bounds.extend(point))));
+                onFitBounds(bounds);
+            }
+        } catch (err) {
+            console.log(err);
+            setRouteStatus('error');
+            notify('路線查詢失敗，請稍後再試', 'warning');
         }
     };
 
@@ -161,7 +121,8 @@ function MountainInfoBlock({ data, photoLoading, isDesktop, onClose, onFocus, on
 
     const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${data.lat},${data.lon}`;
     const weatherUrl = `https://www.google.com/search?q=${encodeURIComponent(data.title + ' 天氣')}`;
-    const bijiUrl = `https://hiking.biji.co/index.php?q=mountain&act=detail&id=${data.id}`;
+    const bijiUrl = bijiMountainUrl(data.id);
+    const osmUrl = `https://www.openstreetmap.org/#map=15/${data.lat}/${data.lon}`;
 
     const heroHeight = isDesktop ? 190 : 130;
 
@@ -210,12 +171,30 @@ function MountainInfoBlock({ data, photoLoading, isDesktop, onClose, onFocus, on
                     <Box sx={{ height: heroHeight, position: 'relative', bgcolor: 'primary.dark' }}>
                         {photoLoading ?
                             <Skeleton variant="rectangular" animation="wave" sx={{ width: '100%', height: '100%', bgcolor: 'rgba(255,255,255,0.12)' }} />
-                        : data.mainPhoto && !photoError ?
-                            <Box component="img" src={data.mainPhoto} alt="" onError={() => setPhotoError(true)} sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                        : photo && !photoError ?
+                            <Box component="img" src={photo.url} alt="" onError={() => setPhotoError(true)} sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                         :
                             <Box className="hero-fallback" sx={{ width: '100%', height: '100%' }} />
                         }
-                        <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0) 35%, rgba(0,0,0,0.65) 100%)' }} />
+                        <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0) 30%, rgba(0,0,0,0) 40%, rgba(0,0,0,0.7) 100%)' }} />
+                        {photo && !photoError && !photoLoading ?
+                            <Stack direction="row" spacing={0.75} alignItems="center" sx={{ position: 'absolute', top: 10, left: 12, right: 88 }}>
+                                {photo.nearby ?
+                                    <Chip size="small" label="附近照片" sx={{ height: 20, fontSize: 11, color: '#fff', bgcolor: 'rgba(0,0,0,0.45)' }} />
+                                : null}
+                                <Link
+                                    href={photo.pageUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    underline="hover"
+                                    noWrap
+                                    title={`照片：${photo.author}${photo.license ? ' / ' + photo.license : ''}（Wikimedia Commons）`}
+                                    sx={{ color: 'rgba(255,255,255,0.9)', fontSize: 11, textShadow: '0 1px 2px rgba(0,0,0,0.6)', minWidth: 0 }}
+                                >
+                                    照片：{photo.author}{photo.license ? ` / ${photo.license}` : ''}
+                                </Link>
+                            </Stack>
+                        : null}
                     </Box>
                 </Collapse>
 
@@ -312,28 +291,36 @@ function MountainInfoBlock({ data, photoLoading, isDesktop, onClose, onFocus, on
                         <Stack direction="row" alignItems="center" spacing={1}>
                             <Icon fontSize="small" color="primary">route</Icon>
                             <Typography variant="subtitle2" fontWeight={700}>登山路線</Typography>
-                            <Chip size="small" label={trialData.length || relatedTrials.length} />
+                            {routeStatus === 'loaded' ? <Chip size="small" label={trialData.length} /> : null}
                         </Stack>
-                        {trialData.length ?
-                            <Button size="small" startIcon={<Icon>refresh</Icon>} onClick={loadTrial} disabled={trialDataLoading}>
-                                重新載入
+                        {routeStatus === 'loaded' || routeStatus === 'error' ?
+                            <Button size="small" startIcon={<Icon>refresh</Icon>} onClick={loadRoutes}>
+                                重新查詢
                             </Button>
                         : null}
                     </Stack>
 
-                    {relatedTrials.length === 0 ?
-                        <Typography variant="body2" color="text.secondary">此山岳目前沒有相關路線資料</Typography>
-                    : !trialData.length ?
+                    {routeStatus === 'idle' || routeStatus === 'loading' || routeStatus === 'error' ?
                         <LoadingButton
                             fullWidth
-                            onClick={loadTrial}
-                            loading={trialDataLoading}
+                            onClick={loadRoutes}
+                            loading={routeStatus === 'loading'}
                             loadingPosition="start"
                             startIcon={<Icon>directions_walk</Icon>}
                             variant="contained"
                         >
-                            {trialDataLoading ? '路線載入中…' : `在地圖上顯示路線 (${relatedTrials.length})`}
+                            {routeStatus === 'loading' ? '路線查詢中…' : '在地圖上顯示附近路線'}
                         </LoadingButton>
+                    : !trialData.length ?
+                        <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'grey.50', border: 1, borderColor: 'divider' }}>
+                            <Typography variant="body2" color="text.secondary">
+                                OpenStreetMap 上尚無這座山附近的登山路線資料。
+                            </Typography>
+                            <Stack direction="row" spacing={1.5} sx={{ mt: 0.75 }}>
+                                <Link href={bijiUrl} target="_blank" rel="noreferrer" variant="body2">到健行筆記查看</Link>
+                                <Link href={osmUrl} target="_blank" rel="noreferrer" variant="body2">在 OpenStreetMap 開啟</Link>
+                            </Stack>
+                        </Box>
                     :
                         <Stack spacing={0.75}>
                             {trialData.map((item, index) =>
@@ -362,7 +349,7 @@ function MountainInfoBlock({ data, photoLoading, isDesktop, onClose, onFocus, on
                                             <Icon fontSize="small">{item.visible ? 'visibility' : 'visibility_off'}</Icon>
                                         </IconButton>
                                     </Tooltip>
-                                    <Tooltip title="在健行筆記開啟">
+                                    <Tooltip title="在 OpenStreetMap 開啟">
                                         <IconButton size="small" href={item.url} target="_blank" rel="noreferrer">
                                             <Icon fontSize="small">open_in_new</Icon>
                                         </IconButton>
@@ -371,6 +358,46 @@ function MountainInfoBlock({ data, photoLoading, isDesktop, onClose, onFocus, on
                             )}
                         </Stack>
                     }
+
+                    {routeStatus === 'loaded' ?
+                        <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 1 }}>
+                            路線資料 ©{' '}
+                            <Link href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</Link>
+                            {' '}貢獻者（ODbL），僅供參考，出發前請確認最新路況。
+                        </Typography>
+                    : null}
+
+                    {relatedTrials.length ?
+                        <Box sx={{ mt: 1.5 }}>
+                            <Button
+                                size="small"
+                                color="inherit"
+                                onClick={() => setBijiOpen(!bijiOpen)}
+                                endIcon={<Icon>{bijiOpen ? 'expand_less' : 'expand_more'}</Icon>}
+                                sx={{ px: 0.5, color: 'text.secondary' }}
+                            >
+                                健行筆記上的路線（{relatedTrials.length}）
+                            </Button>
+                            <Collapse in={bijiOpen}>
+                                <Stack spacing={0.25} sx={{ pl: 0.5, pt: 0.5 }}>
+                                    {relatedTrials.map(trail =>
+                                        <Link
+                                            key={trail.link}
+                                            href={bijiTrailUrl(trail.link)}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            variant="body2"
+                                            underline="hover"
+                                            sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
+                                        >
+                                            <Icon sx={{ fontSize: 16 }}>open_in_new</Icon>
+                                            {trail.name}
+                                        </Link>
+                                    )}
+                                </Stack>
+                            </Collapse>
+                        </Box>
+                    : null}
                 </Box>
             </Collapse>
         </Paper>

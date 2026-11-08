@@ -1,8 +1,5 @@
-export const corsUrl = 'https://cors-proxy-kevincay.herokuapp.com/';
-export const mainRequestUrl = 'https://hiking.biji.co/';
-
-// Parse fetched HTML without executing scripts or loading images.
-export const parseHtml = (html) => new DOMParser().parseFromString(html, 'text/html');
+export const bijiMountainUrl = (id) => `https://hiking.biji.co/index.php?q=mountain&act=detail&id=${id}`;
+export const bijiTrailUrl = (link) => `https://hiking.biji.co/${(link || '').replace(/^\//, '')}`;
 
 export const getCategory = (item) =>
     item && item.label_item && item.label_item.length ? item.label_item[0].name : null;
