@@ -1,16 +1,16 @@
 {
   "files": {
     "main.css": "/taiwan_mountain_map/static/css/main.4707c5bf.css",
-    "main.js": "/taiwan_mountain_map/static/js/main.8870143b.js",
+    "main.js": "/taiwan_mountain_map/static/js/main.a607eaae.js",
     "static/js/787.6af50880.chunk.js": "/taiwan_mountain_map/static/js/787.6af50880.chunk.js",
     "static/media/mountain-png.png": "/taiwan_mountain_map/static/media/mountain-png.ad26932fd7682a6eda6a.png",
     "index.html": "/taiwan_mountain_map/index.html",
     "main.4707c5bf.css.map": "/taiwan_mountain_map/static/css/main.4707c5bf.css.map",
-    "main.8870143b.js.map": "/taiwan_mountain_map/static/js/main.8870143b.js.map",
+    "main.a607eaae.js.map": "/taiwan_mountain_map/static/js/main.a607eaae.js.map",
     "787.6af50880.chunk.js.map": "/taiwan_mountain_map/static/js/787.6af50880.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.4707c5bf.css",
-    "static/js/main.8870143b.js"
+    "static/js/main.a607eaae.js"
   ]
 }
