@@ -357,9 +357,16 @@ function MountainInfoBlock({ data, photoLoading, isDesktop, onClose, onFocus, on
                                     }}
                                 >
                                     <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: item.color, flexShrink: 0, boxShadow: '0 0 0 2px #fff, 0 0 0 3px rgba(0,0,0,0.12)' }} />
-                                    <Typography variant="body2" sx={{ flex: 1, minWidth: 0 }} noWrap title={item.name}>
-                                        {item.name}
-                                    </Typography>
+                                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                                        <Typography variant="body2" noWrap title={item.name}>
+                                            {item.name}
+                                        </Typography>
+                                        {typeof item.distance === 'number' ?
+                                            <Typography variant="caption" color="text.secondary" component="div" lineHeight={1.3}>
+                                                {item.distance <= 50 ? '經過山頂' : `距山頂約 ${item.distance} 公尺`}
+                                            </Typography>
+                                        : null}
+                                    </Box>
                                     <Tooltip title={item.visible ? '隱藏路線' : '顯示路線'}>
                                         <IconButton size="small" onClick={() => togglePathVisible(index)}>
                                             <Icon fontSize="small">{item.visible ? 'visibility' : 'visibility_off'}</Icon>
